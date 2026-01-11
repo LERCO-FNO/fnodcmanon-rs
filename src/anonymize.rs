@@ -1,0 +1,198 @@
+// use std::error::Error;
+use dicom_core::{DataElement, VR};
+use dicom_dictionary_std::tags;
+use dicom_object::{InMemDicomObject, open_file};
+use rand::{Rng, distr::Alphanumeric};
+use std::{
+    collections::HashMap,
+    io,
+    path::{Path, PathBuf},
+};
+
+use crate::utils;
+
+#[derive(Debug)]
+pub enum PseudonameMethod {
+    RandomString,
+    IntegerCount { start: u16 },
+    FromFile { path: PathBuf },
+}
+
+#[derive(Debug)]
+enum PseudonameGenerator {
+    RandomString,
+    IntegerCount { current: u16 },
+    FromMap { map: HashMap<String, String> },
+}
+
+#[derive(Debug)]
+struct DicomAnonymizer {
+    prefix: String,
+    pseudoname_generator: PseudonameGenerator,
+    old_name: String,
+    old_id: String,
+    pseudoname: String, // same as name
+    study_uid: String,
+}
+
+impl Default for DicomAnonymizer {
+    fn default() -> Self {
+        Self {
+            prefix: String::new(),
+            pseudoname_generator: PseudonameGenerator::RandomString,
+            old_name: String::new(),
+            old_id: String::new(),
+            pseudoname: String::new(),
+            study_uid: String::new(),
+        }
+    }
+}
+
+impl DicomAnonymizer {
+    fn new(prefix: String, pseudoname_method: PseudonameMethod) -> Result<Self, io::Error> {
+        let base = DicomAnonymizer::default();
+
+        let anonymizer = match pseudoname_method {
+            PseudonameMethod::RandomString => Self {
+                prefix,
+                pseudoname_generator: PseudonameGenerator::RandomString,
+                ..base
+            },
+            PseudonameMethod::IntegerCount { start } => Self {
+                prefix,
+                pseudoname_generator: PseudonameGenerator::IntegerCount { current: start },
+                ..base
+            },
+            PseudonameMethod::FromFile { path } => Self {
+                prefix,
+                pseudoname_generator: PseudonameGenerator::FromMap {
+                    map: utils::read_pseudonames_files(&path)?,
+                },
+                ..base
+            },
+        };
+
+        Ok(anonymizer)
+    }
+
+    fn set_pseudoname(&mut self) {
+        self.pseudoname = match &mut self.pseudoname_generator {
+            PseudonameGenerator::RandomString => {
+                format!("{0}{1}", self.prefix, generate_random_string())
+            }
+            PseudonameGenerator::IntegerCount { current } => {
+                let pseudoname = format!("{0}{1}", self.prefix, *current);
+                *current += 1;
+                pseudoname
+            }
+            PseudonameGenerator::FromMap { map } => match map.get(&self.old_id) {
+                Some(v) => v.to_owned(),
+                None => format!("{0}{1}", self.prefix, generate_random_string()),
+            },
+        };
+    }
+
+    fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let dicom_obj = open_file(filepath)?;
+
+        self.old_id = dicom_obj.element(tags::PATIENT_ID)?.to_str()?.to_string();
+        self.old_name = dicom_obj.element(tags::PATIENT_NAME)?.to_str()?.to_string();
+        self.study_uid = dicom_obj
+            .element(tags::STUDY_INSTANCE_UID)?
+            .to_str()?
+            .to_string();
+
+        self.set_pseudoname();
+
+        Ok(())
+    }
+
+    fn anonymize_study(
+        &mut self,
+        dicom_files: Vec<PathBuf>,
+        output_dir: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let study_dir = utils::create_study_dir(output_dir, &self.study_uid)?;
+
+        for file in dicom_files {
+            let mut dataset = open_file(&file)?;
+
+            self.anonymize_basic_profile(&mut dataset)?;
+
+            let filepath = study_dir.join(file.file_name().unwrap());
+
+            if filepath.exists() {
+                log::warn!("file {} exists, overwriting", filepath.display());
+            }
+
+            dataset.write_to_file(filepath)?;
+        }
+
+        println!(
+            "old id {0}, old name {1}, new id/name {2}",
+            self.old_id, self.old_name, self.pseudoname
+        );
+
+        Ok(())
+    }
+
+    fn anonymize_basic_profile(
+        &self,
+        dataset: &mut InMemDicomObject,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = dataset.put(DataElement::new(
+            tags::PATIENT_ID,
+            VR::LO,
+            self.pseudoname.clone(),
+        ));
+
+        let _ = dataset.put(DataElement::new(
+            tags::PATIENT_NAME,
+            VR::PN,
+            self.pseudoname.clone(),
+        ));
+
+        dataset.put_element(DataElement::new(
+            tags::PATIENT_SEX,
+            VR::AS,
+            String::from("O"),
+        ));
+
+        Ok(())
+    }
+}
+
+pub fn run_anonymization(
+    input_dir: PathBuf,
+    output_dir: PathBuf,
+    method: PseudonameMethod,
+    prefix: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dicom_dirs = match utils::find_dicom_dirs(&input_dir) {
+        Ok(dicom_dirs) => dicom_dirs,
+        Err(e) => {
+            log::error!("{e}");
+            return Err(Box::new(e));
+        }
+    };
+
+    // TODO: finish this
+    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method)?;
+
+    for dir in dicom_dirs {
+        let dicom_files = match utils::get_dicom_files(&dir) {
+            Some(files) => files,
+            None => continue,
+        };
+
+        dicom_anonymizer.get_basic_tags(dicom_files.first().unwrap())?;
+        dicom_anonymizer.anonymize_study(dicom_files, &output_dir)?;
+    }
+
+    Ok(())
+}
+
+fn generate_random_string() -> String {
+    let mut rng = rand::rng();
+    (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
+}
