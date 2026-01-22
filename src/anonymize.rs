@@ -82,7 +82,7 @@ impl DicomAnonymizer {
         for file in dicom_files {
             let mut dataset = open_file(&file)?;
 
-            self.anonymize_basic_profile(&mut dataset)?;
+            self.anonymize_basic_profile(&mut dataset);
 
             let filepath = study_dir.join(file.file_name().unwrap());
 
@@ -101,17 +101,14 @@ impl DicomAnonymizer {
         Ok(())
     }
 
-    fn anonymize_basic_profile(
-        &self,
-        dataset: &mut InMemDicomObject,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let _ = dataset.put(DataElement::new(
+    fn anonymize_basic_profile(&self, dataset: &mut InMemDicomObject) {
+        dataset.put_element(DataElement::new(
             tags::PATIENT_ID,
             VR::LO,
             self.pseudoname.clone(),
         ));
 
-        let _ = dataset.put(DataElement::new(
+        dataset.put_element(DataElement::new(
             tags::PATIENT_NAME,
             VR::PN,
             self.pseudoname.clone(),
@@ -122,6 +119,7 @@ impl DicomAnonymizer {
             VR::CS,
             String::from("O"),
         ));
+    }
 
         Ok(())
     }
@@ -188,10 +186,7 @@ mod tests {
         ];
 
         let mut dataset = dicom_object::InMemDicomObject::from_element_iter(elements);
-        match anonymizer.anonymize_basic_profile(&mut dataset) {
-            Ok(ok) => println!("{ok:?}"),
-            Err(err) => panic!("{err}"),
-        }
+        anonymizer.anonymize_basic_profile(&mut dataset);
 
         for (tag, true_value) in check_values {
             if let Ok(v) = dataset.element(tag) {
