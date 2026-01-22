@@ -69,3 +69,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dicom_gen_uid;
+
+    #[test]
+    fn test_dicom_uid() {
+        let uid = dicom_gen_uid::gen_uid();
+        println!("{uid:#}");
+        let length2 = uid.len();
+        println!("{length2}");
+
+        let uid = dicom_gen_uid::uuid::Uuid::new_v4();
+        println!("{uid:#}");
+    }
+
+    #[test]
+    fn arg_from_file() -> Result<(), Box<dyn std::error::Error>> {
+        let cli_args: Vec<&str> = vec![
+            "--",
+            "--input-dir",
+            "./input",
+            "-p",
+            "TEST",
+            "-m",
+            "from-file",
+            "--pseudonames-file",
+            "./test-data/pseudonames.txt",
+        ];
+
+        let cmdargs = match CmdArgs::try_parse_from(cli_args.iter()) {
+            Ok(res) => res,
+            Err(err) => {
+                println!("{err}");
+                panic!("error parsing CLI arguments");
+            }
+        };
+
+        dbg!(&cmdargs);
+
+        let method = match cmdargs.method {
+            ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
+            ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
+                current: cmdargs.integer_start,
+            },
+            ArgPseudonameMethod::FromFile => {
+                let path = utils::pseudoname_file_exists(cmdargs.pseudonames_file.unwrap())?;
+                PseudonameMethod::FromMap {
+                    map: utils::read_pseudonames_files(&path)?,
+                }
+            }
+        };
+
+        println!("{method:#?}");
+
+        Ok(())
+    }
+
+    //   panic!("error parsing CLI arguments");
+}

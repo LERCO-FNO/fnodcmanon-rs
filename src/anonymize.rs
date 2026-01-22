@@ -164,3 +164,43 @@ fn generate_random_string() -> String {
     let mut rng = rand::rng();
     (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_profile() {
+        let mut anonymizer = DicomAnonymizer::new(
+            "TST".to_string(),
+            PseudonameMethod::IntegerCount { current: 0 },
+        );
+        anonymizer.set_pseudoname();
+
+        let elements = [
+            DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
+            DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
+            DataElement::new(tags::PATIENT_SEX, VR::AS, "M"),
+        ];
+
+        let check_values = [
+            (tags::PATIENT_ID, "TST0"),
+            (tags::PATIENT_NAME, "TST0"),
+            (tags::PATIENT_SEX, "O"),
+        ];
+
+        let mut dataset = dicom_object::InMemDicomObject::from_element_iter(elements);
+        match anonymizer.anonymize_basic_profile(&mut dataset) {
+            Ok(ok) => println!("{ok:?}"),
+            Err(err) => panic!("{err}"),
+        }
+
+        for (tag, true_value) in check_values {
+            if let Ok(v) = dataset.element(tag) {
+                if let Ok(v) = v.to_str() {
+                    assert_eq!(v, true_value);
+                }
+            }
+        }
+    }
+}
