@@ -121,7 +121,7 @@ impl DicomAnonymizer {
 
         dataset.put_element(DataElement::new(
             tags::PATIENT_SEX,
-            VR::AS,
+            VR::CS,
             String::from("O"),
         ));
 
