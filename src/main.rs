@@ -19,7 +19,7 @@ struct CmdArgs {
     #[arg(short, long)]
     prefix: Option<String>,
 
-    #[arg(value_enum, short, long, default_value = "random-string")]
+    #[arg(short, long, default_value = "random-string")]
     method: ArgPseudonameMethod,
 
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
@@ -34,7 +34,7 @@ struct CmdArgs {
 }
 
 #[derive(Debug, Clone, ValueEnum)]
-pub enum ArgPseudonameMethod {
+enum ArgPseudonameMethod {
     RandomString,
     IntegerCount,
     FromFile,
@@ -50,15 +50,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let method = match cmdargs.method {
         ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
         ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
-            start: cmdargs.integer_start,
+            current: cmdargs.integer_start,
         },
         ArgPseudonameMethod::FromFile => {
-            let filepath = cmdargs
-                .pseudonames_file
-                .ok_or("missing path to pseudoname file (--pseudonames-file)")?;
-
-            PseudonameMethod::FromFile {
-                path: utils::pseudoname_file_exists(filepath)?,
+            let path = utils::pseudoname_file_exists(cmdargs.pseudonames_file.unwrap())?;
+            PseudonameMethod::FromMap {
+                map: utils::read_pseudonames_files(&path)?,
             }
         }
     };

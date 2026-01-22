@@ -11,81 +11,48 @@ use std::{
 
 use crate::utils;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum PseudonameMethod {
+    #[default]
     RandomString,
-    IntegerCount { start: u16 },
-    FromFile { path: PathBuf },
+    IntegerCount {
+        current: u16,
+    },
+    FromMap {
+        map: HashMap<String, String>,
+    },
 }
 
-#[derive(Debug)]
-enum PseudonameGenerator {
-    RandomString,
-    IntegerCount { current: u16 },
-    FromMap { map: HashMap<String, String> },
-}
-
-#[derive(Debug)]
-struct DicomAnonymizer {
+#[derive(Debug, Default)]
+pub struct DicomAnonymizer {
     prefix: String,
-    pseudoname_generator: PseudonameGenerator,
+    pseudoname_method: PseudonameMethod,
     old_name: String,
     old_id: String,
     pseudoname: String, // same as name
     study_uid: String,
 }
 
-impl Default for DicomAnonymizer {
-    fn default() -> Self {
-        Self {
-            prefix: String::new(),
-            pseudoname_generator: PseudonameGenerator::RandomString,
-            old_name: String::new(),
-            old_id: String::new(),
-            pseudoname: String::new(),
-            study_uid: String::new(),
-        }
-    }
-}
-
 impl DicomAnonymizer {
-    fn new(prefix: String, pseudoname_method: PseudonameMethod) -> Result<Self, io::Error> {
-        let base = DicomAnonymizer::default();
-
-        let anonymizer = match pseudoname_method {
-            PseudonameMethod::RandomString => Self {
-                prefix,
-                pseudoname_generator: PseudonameGenerator::RandomString,
-                ..base
-            },
-            PseudonameMethod::IntegerCount { start } => Self {
-                prefix,
-                pseudoname_generator: PseudonameGenerator::IntegerCount { current: start },
-                ..base
-            },
-            PseudonameMethod::FromFile { path } => Self {
-                prefix,
-                pseudoname_generator: PseudonameGenerator::FromMap {
-                    map: utils::read_pseudonames_files(&path)?,
-                },
-                ..base
-            },
-        };
-
-        Ok(anonymizer)
+    fn new(prefix: String, method: PseudonameMethod) -> Self {
+        Self {
+            prefix,
+            pseudoname_method: method,
+            ..Default::default()
+        }
     }
 
     fn set_pseudoname(&mut self) {
-        self.pseudoname = match &mut self.pseudoname_generator {
-            PseudonameGenerator::RandomString => {
+        self.pseudoname = match &mut self.pseudoname_method {
+            PseudonameMethod::RandomString => {
                 format!("{0}{1}", self.prefix, generate_random_string())
             }
-            PseudonameGenerator::IntegerCount { current } => {
+            PseudonameMethod::IntegerCount { current } => {
                 let pseudoname = format!("{0}{1}", self.prefix, *current);
                 *current += 1;
                 pseudoname
             }
-            PseudonameGenerator::FromMap { map } => match map.get(&self.old_id) {
+            PseudonameMethod::FromMap { map } => match map.get(&self.old_id) {
                 Some(v) => v.to_owned(),
                 None => format!("{0}{1}", self.prefix, generate_random_string()),
             },
@@ -177,7 +144,7 @@ pub fn run_anonymization(
     };
 
     // TODO: finish this
-    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method)?;
+    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method);
 
     for dir in dicom_dirs {
         let dicom_files = match utils::get_dicom_files(&dir) {
