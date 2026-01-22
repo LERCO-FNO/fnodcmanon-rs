@@ -29,7 +29,7 @@ pub struct DicomAnonymizer {
     pseudoname_method: PseudonameMethod,
     old_name: String,
     old_id: String,
-    pseudoname: String, // same as name
+    pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
 }
 
@@ -68,8 +68,6 @@ impl DicomAnonymizer {
             .element(tags::STUDY_INSTANCE_UID)?
             .to_str()?
             .to_string();
-
-        // self.set_pseudoname();
 
         Ok(())
     }

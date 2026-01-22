@@ -127,6 +127,4 @@ mod tests {
 
         Ok(())
     }
-
-    //   panic!("error parsing CLI arguments");
 }
