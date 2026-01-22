@@ -69,7 +69,7 @@ impl DicomAnonymizer {
             .to_str()?
             .to_string();
 
-        self.set_pseudoname();
+        // self.set_pseudoname();
 
         Ok(())
     }
@@ -153,6 +153,7 @@ pub fn run_anonymization(
         };
 
         dicom_anonymizer.get_basic_tags(dicom_files.first().unwrap())?;
+        dicom_anonymizer.set_pseudoname();
         dicom_anonymizer.anonymize_study(dicom_files, &output_dir)?;
     }
 
