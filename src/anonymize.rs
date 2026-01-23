@@ -24,13 +24,6 @@ pub enum PseudonameMethod {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
-pub enum AnonymizationProfiles {
-    Patient,
-    Institution,
-    Device,
-}
-
 #[derive(Debug, Default)]
 pub struct DicomAnonymizer {
     prefix: String,
@@ -40,11 +33,6 @@ pub struct DicomAnonymizer {
     pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
     additional_profiles: HashSet<AnonymizationProfiles>,
-}
-
-struct OldPatientNameID {
-    name: String,
-    id: String,
 }
 
 impl DicomAnonymizer {
@@ -118,38 +106,15 @@ impl DicomAnonymizer {
 
         Ok(())
     }
-
-    // fn anonymize_basic_profile(&self, dataset: &mut InMemDicomObject) {
-    //     _ = dataset.put_element(DataElement::new(
-    //         tags::PATIENT_ID,
-    //         VR::LO,
-    //         self.pseudoname.clone(),
-    //     ));
-
-    //     _ = dataset.put_element(DataElement::new(
-    //         tags::PATIENT_NAME,
-    //         VR::PN,
-    //         self.pseudoname.clone(),
-    //     ));
-
-    //     _ = dataset.put_element(DataElement::new(
-    //         tags::PATIENT_SEX,
-    //         VR::CS,
-    //         String::from("O"),
-    //     ));
-    // }
-
-    // fn anonymize_patient_characteristic_profile(&self, dataset: &mut InMemDicomObject) {
     //     todo!()
     // }
+}
 
-    // fn anonymize_institution_profile(&self, dataset: &mut InMemDicomObject) {
-    //     todo!()
-    // }
-
-    // fn anonymize_device_profile(&self, dataset: &mut InMemDicomObject) {
-    //     todo!()
-    // }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
+pub enum AnonymizationProfiles {
+    Patient,
+    Institution,
+    Device,
 }
 
 impl AnonymizationProfiles {
@@ -227,33 +192,25 @@ mod tests {
     use super::*;
 
     mod profiles {
-    use super::*;
+        use super::*;
 
-    #[test]
+        #[test]
         fn basic() {
-        let elements = [
-            DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
-            DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
-            DataElement::new(tags::PATIENT_SEX, VR::AS, "M"),
-        ];
+            let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
+                DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
+                DataElement::new(tags::PATIENT_SEX, VR::CS, "M"),
+            ]);
 
-        let check_values = [
-            (tags::PATIENT_ID, "TST0"),
-            (tags::PATIENT_NAME, "TST0"),
-            (tags::PATIENT_SEX, "O"),
-        ];
+            let true_dataset = dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
+                DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
+                DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
+            ]);
 
-        let mut dataset = dicom_object::InMemDicomObject::from_element_iter(elements);
             anonymize_basic_profile("TST0", &mut dataset);
 
-        for (tag, true_value) in check_values {
-            if let Ok(v) = dataset.element(tag) {
-                    dbg!(&v);
-                if let Ok(v) = v.to_str() {
-                    assert_eq!(v, true_value);
-                }
-            }
-            }
+            assert_eq!(dataset, true_dataset);
         }
 
         #[test]
