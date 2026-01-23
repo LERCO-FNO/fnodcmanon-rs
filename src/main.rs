@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use simple_logger::SimpleLogger;
 
-use fnodcmanon::anonymize;
 use fnodcmanon::anonymize::PseudonameMethod;
+use fnodcmanon::anonymize::{self, AnonymizationProfiles};
 use fnodcmanon::utils;
 
 #[derive(Debug, Parser)]
@@ -31,6 +31,9 @@ struct CmdArgs {
         required_if_eq("method", "from-file")
     )]
     pseudonames_file: Option<PathBuf>,
+
+    #[arg(long)]
+    profile: Vec<AnonymizationProfiles>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -74,6 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use dicom_gen_uid;
+    use std::collections::HashSet;
 
     #[test]
     fn test_dicom_uid() {
@@ -126,5 +130,43 @@ mod tests {
         println!("{method:#?}");
 
         Ok(())
+    }
+
+    #[test]
+    fn set_profiles() {
+        let cli_args: Vec<&str> = vec![
+            "--",
+            "--input-dir",
+            "./input",
+            "-p",
+            "TEST",
+            "--profile",
+            "device",
+            "--profile",
+            "device",
+            "--profile",
+            "patient",
+            "--profile",
+            "institution",
+            "--profile",
+            "institution",
+            "--profile",
+            "patient",
+        ];
+
+        let cmdargs = match CmdArgs::try_parse_from(cli_args.iter()) {
+            Ok(res) => res,
+            Err(err) => panic!("error parsing CLI arguments: {err}"),
+        };
+
+        let true_set: HashSet<anonymize::AnonymizationProfiles> = HashSet::from_iter([
+            anonymize::AnonymizationProfiles::Institution,
+            anonymize::AnonymizationProfiles::Device,
+            anonymize::AnonymizationProfiles::Patient,
+        ]);
+
+        let set = HashSet::from_iter(cmdargs.profile);
+        dbg!(&set);
+        assert_eq!(set, true_set);
     }
 }

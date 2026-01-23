@@ -1,10 +1,11 @@
 // use std::error::Error;
+use clap::ValueEnum;
 use dicom_core::{DataElement, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, open_file};
 use rand::{Rng, distr::Alphanumeric};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io,
     path::{Path, PathBuf},
 };
@@ -21,6 +22,13 @@ pub enum PseudonameMethod {
     FromMap {
         map: HashMap<String, String>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
+pub enum AnonymizationProfiles {
+    Patient,
+    Institution,
+    Device,
 }
 
 #[derive(Debug, Default)]
