@@ -39,6 +39,12 @@ pub struct DicomAnonymizer {
     old_id: String,
     pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
+    additional_profiles: HashSet<AnonymizationProfiles>,
+}
+
+struct OldPatientNameID {
+    name: String,
+    id: String,
 }
 
 impl DicomAnonymizer {
@@ -90,7 +96,11 @@ impl DicomAnonymizer {
         for file in dicom_files {
             let mut dataset = open_file(&file)?;
 
-            self.anonymize_basic_profile(&mut dataset);
+            anonymize_basic_profile(&self.pseudoname, &mut dataset);
+
+            for profile in &self.additional_profiles {
+                profile.apply(&mut dataset);
+            }
 
             let filepath = study_dir.join(file.file_name().unwrap());
 
@@ -109,27 +119,46 @@ impl DicomAnonymizer {
         Ok(())
     }
 
-    fn anonymize_basic_profile(&self, dataset: &mut InMemDicomObject) {
-        dataset.put_element(DataElement::new(
-            tags::PATIENT_ID,
-            VR::LO,
-            self.pseudoname.clone(),
-        ));
+    // fn anonymize_basic_profile(&self, dataset: &mut InMemDicomObject) {
+    //     _ = dataset.put_element(DataElement::new(
+    //         tags::PATIENT_ID,
+    //         VR::LO,
+    //         self.pseudoname.clone(),
+    //     ));
 
-        dataset.put_element(DataElement::new(
-            tags::PATIENT_NAME,
-            VR::PN,
-            self.pseudoname.clone(),
-        ));
+    //     _ = dataset.put_element(DataElement::new(
+    //         tags::PATIENT_NAME,
+    //         VR::PN,
+    //         self.pseudoname.clone(),
+    //     ));
 
-        dataset.put_element(DataElement::new(
-            tags::PATIENT_SEX,
-            VR::CS,
-            String::from("O"),
-        ));
-    }
+    //     _ = dataset.put_element(DataElement::new(
+    //         tags::PATIENT_SEX,
+    //         VR::CS,
+    //         String::from("O"),
+    //     ));
+    // }
 
-        Ok(())
+    // fn anonymize_patient_characteristic_profile(&self, dataset: &mut InMemDicomObject) {
+    //     todo!()
+    // }
+
+    // fn anonymize_institution_profile(&self, dataset: &mut InMemDicomObject) {
+    //     todo!()
+    // }
+
+    // fn anonymize_device_profile(&self, dataset: &mut InMemDicomObject) {
+    //     todo!()
+    // }
+}
+
+impl AnonymizationProfiles {
+    fn apply(&self, dataset: &mut InMemDicomObject) {
+        match self {
+            Self::Patient => anonymize_patient_characteristic_profile(dataset),
+            Self::Institution => anonymize_institution_profile(dataset),
+            Self::Device => anonymize_device_profile(dataset),
+        }
     }
 }
 
@@ -164,6 +193,30 @@ pub fn run_anonymization(
     Ok(())
 }
 
+fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
+    _ = dataset.put_element(DataElement::new(tags::PATIENT_ID, VR::LO, pseudoname));
+
+    _ = dataset.put_element(DataElement::new(tags::PATIENT_NAME, VR::PN, pseudoname));
+
+    _ = dataset.put_element(DataElement::new(
+        tags::PATIENT_SEX,
+        VR::CS,
+        String::from("O"),
+    ));
+}
+
+fn anonymize_patient_characteristic_profile(dataset: &mut InMemDicomObject) {
+    todo!()
+}
+
+fn anonymize_institution_profile(dataset: &mut InMemDicomObject) {
+    todo!()
+}
+
+fn anonymize_device_profile(dataset: &mut InMemDicomObject) {
+    todo!()
+}
+
 fn generate_random_string() -> String {
     let mut rng = rand::rng();
     (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
@@ -173,14 +226,11 @@ fn generate_random_string() -> String {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_basic_profile() {
-        let mut anonymizer = DicomAnonymizer::new(
-            "TST".to_string(),
-            PseudonameMethod::IntegerCount { current: 0 },
-        );
-        anonymizer.set_pseudoname();
+    mod profiles {
+    use super::*;
 
+    #[test]
+        fn basic() {
         let elements = [
             DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
             DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
@@ -194,14 +244,31 @@ mod tests {
         ];
 
         let mut dataset = dicom_object::InMemDicomObject::from_element_iter(elements);
-        anonymizer.anonymize_basic_profile(&mut dataset);
+            anonymize_basic_profile("TST0", &mut dataset);
 
         for (tag, true_value) in check_values {
             if let Ok(v) = dataset.element(tag) {
+                    dbg!(&v);
                 if let Ok(v) = v.to_str() {
                     assert_eq!(v, true_value);
                 }
             }
+            }
+        }
+
+        #[test]
+        fn patient() {
+            todo!()
+        }
+
+        #[test]
+        fn institution() {
+            todo!()
+        }
+
+        #[test]
+        fn device() {
+            todo!()
         }
     }
 }
