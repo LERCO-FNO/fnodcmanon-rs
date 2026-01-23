@@ -36,10 +36,15 @@ pub struct DicomAnonymizer {
 }
 
 impl DicomAnonymizer {
-    fn new(prefix: String, method: PseudonameMethod) -> Self {
+    fn new(
+        prefix: String,
+        method: PseudonameMethod,
+        profiles: HashSet<AnonymizationProfiles>,
+    ) -> Self {
         Self {
             prefix,
             pseudoname_method: method,
+            additional_profiles: profiles,
             ..Default::default()
         }
     }
@@ -125,6 +130,15 @@ impl AnonymizationProfiles {
             Self::Device => anonymize_device_profile(dataset),
         }
     }
+
+    fn profile_as_string_code(&self) -> String {
+        let method = match self {
+            Self::Patient => "DCM_01",
+            Self::Institution => "DCM_02",
+            Self::Device => "DCM_03",
+        };
+        method.to_string()
+    }
 }
 
 pub fn run_anonymization(
@@ -132,6 +146,7 @@ pub fn run_anonymization(
     output_dir: PathBuf,
     method: PseudonameMethod,
     prefix: String,
+    profiles: HashSet<AnonymizationProfiles>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dicom_dirs = match utils::find_dicom_dirs(&input_dir) {
         Ok(dicom_dirs) => dicom_dirs,
@@ -142,7 +157,7 @@ pub fn run_anonymization(
     };
 
     // TODO: finish this
-    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method);
+    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method, profiles);
 
     for dir in dicom_dirs {
         let dicom_files = match utils::get_dicom_files(&dir) {
@@ -168,18 +183,68 @@ fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
         VR::CS,
         String::from("O"),
     ));
+
+    _ = dataset.put_element(DataElement::new(
+        tags::PATIENT_IDENTITY_REMOVED,
+        VR::CS,
+        "YES",
+    ));
 }
 
 fn anonymize_patient_characteristic_profile(dataset: &mut InMemDicomObject) {
-    todo!()
+    dataset.remove_element(tags::ALLERGIES);
+    dataset.remove_element(tags::PATIENT_AGE);
+    dataset.remove_element(tags::PATIENT_SEX_NEUTERED);
+    dataset.remove_element(tags::PATIENT_SIZE);
+    dataset.remove_element(tags::PATIENT_WEIGHT);
+    dataset.remove_element(tags::PATIENT_STATE);
+    dataset.remove_element(tags::PREGNANCY_STATUS);
+    dataset.remove_element(tags::SMOKING_STATUS);
 }
 
 fn anonymize_institution_profile(dataset: &mut InMemDicomObject) {
-    todo!()
+    dataset.remove_element(tags::INSTITUTION_ADDRESS);
+    dataset.remove_element(tags::INSTITUTIONAL_DEPARTMENT_NAME);
+    dataset.remove_element(tags::INSTITUTIONAL_DEPARTMENT_TYPE_CODE_SEQUENCE);
+    dataset.remove_element(tags::INSTITUTION_CODE_SEQUENCE);
+    dataset.remove_element(tags::INSTITUTION_NAME);
 }
 
 fn anonymize_device_profile(dataset: &mut InMemDicomObject) {
-    todo!()
+    dataset.remove_element(tags::DEVICE_DESCRIPTION);
+    dataset.remove_element(tags::DEVICE_LABEL);
+    dataset.remove_element(tags::DEVICE_SERIAL_NUMBER);
+    dataset.remove_element(tags::MANUFACTURER_DEVICE_IDENTIFIER);
+    dataset.remove_element(tags::PERFORMED_STATION_NAME);
+    dataset.remove_element(tags::PERFORMED_STATION_NAME_CODE_SEQUENCE);
+    dataset.remove_element(tags::SCHEDULED_STATION_NAME);
+    dataset.remove_element(tags::SCHEDULED_STATION_NAME_CODE_SEQUENCE);
+    dataset.remove_element(tags::SOURCE_MANUFACTURER);
+    dataset.remove_element(tags::SOURCE_SERIAL_NUMBER);
+    dataset.remove_element(tags::STATION_NAME);
+}
+
+fn update_deidentification_method_element(
+    dataset: &mut InMemDicomObject,
+    profile: AnonymizationProfiles,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut el = dataset
+        .element_opt(tags::DEIDENTIFICATION_METHOD)?
+        .and_then(|f| f.to_str().ok())
+        .unwrap_or_default()
+        .into_owned();
+
+    if !el.is_empty() {
+        el.push('\\');
+    }
+
+    let profile_code = profile.profile_as_string_code();
+    println!("adding {0}", profile_code);
+    el.push_str(&profile_code);
+
+    dataset.put_element(DataElement::new(tags::DEIDENTIFICATION_METHOD, VR::LO, el));
+
+    Ok(())
 }
 
 fn generate_random_string() -> String {
@@ -202,30 +267,172 @@ mod tests {
                 DataElement::new(tags::PATIENT_SEX, VR::CS, "M"),
             ]);
 
-            let true_dataset = dicom_object::InMemDicomObject::from_element_iter([
+            anonymize_basic_profile("TST0", &mut dataset);
+
+            let expected_dataset = dicom_object::InMemDicomObject::from_element_iter([
                 DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
                 DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
                 DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
+                DataElement::new(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES"),
             ]);
-
-            anonymize_basic_profile("TST0", &mut dataset);
-
-            assert_eq!(dataset, true_dataset);
+            assert_eq!(dataset, expected_dataset);
         }
 
         #[test]
         fn patient() {
-            todo!()
+            let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::ALLERGIES, VR::LO, "Some Allergies"),
+                DataElement::new(tags::PATIENT_AGE, VR::AS, "063Y"),
+                DataElement::new(tags::PATIENT_SEX_NEUTERED, VR::CS, "ALTERED"),
+                DataElement::new(tags::PATIENT_SIZE, VR::DS, "1.6256"),
+                DataElement::new(tags::PATIENT_WEIGHT, VR::DS, "68.025"),
+                DataElement::new(tags::PATIENT_STATE, VR::LO, "comatose"),
+                DataElement::new(tags::PREGNANCY_STATUS, VR::US, "0004"),
+                DataElement::new(tags::SMOKING_STATUS, VR::CS, "YES"),
+            ]);
+
+            anonymize_patient_characteristic_profile(&mut dataset);
+
+            let expected_dataset = dicom_object::InMemDicomObject::new_empty();
+            assert_eq!(dataset, expected_dataset);
         }
 
         #[test]
         fn institution() {
-            todo!()
+            let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::INSTITUTION_ADDRESS, VR::ST, "Some address"),
+                DataElement::new(
+                    tags::INSTITUTIONAL_DEPARTMENT_NAME,
+                    VR::LO,
+                    "Some Department Name",
+                ),
+                DataElement::new(tags::INSTITUTION_NAME, VR::LO, "Some Institution Name"),
+            ]);
+
+            anonymize_institution_profile(&mut dataset);
+
+            let expected_dataset = dicom_object::InMemDicomObject::new_empty();
+            assert_eq!(dataset, expected_dataset);
         }
 
         #[test]
         fn device() {
-            todo!()
+            let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::DEVICE_DESCRIPTION, VR::LO, "device description"),
+                DataElement::new(tags::DEVICE_LABEL, VR::LO, "device label"),
+                DataElement::new(tags::DEVICE_SERIAL_NUMBER, VR::LO, "device serial number"),
+                DataElement::new(
+                    tags::MANUFACTURER_DEVICE_IDENTIFIER,
+                    VR::ST,
+                    "device identifier",
+                ),
+                DataElement::new(tags::PERFORMED_STATION_NAME, VR::SH, "station name"),
+                DataElement::new(
+                    tags::SCHEDULED_STATION_NAME,
+                    VR::SH,
+                    "scheduled station name",
+                ),
+                DataElement::new(tags::SOURCE_MANUFACTURER, VR::LO, "source manufacturer"),
+                DataElement::new(tags::SOURCE_SERIAL_NUMBER, VR::LO, "123-456789"),
+                DataElement::new(tags::STATION_NAME, VR::SH, "station name"),
+            ]);
+
+            anonymize_device_profile(&mut dataset);
+
+            let true_dataset = dicom_object::InMemDicomObject::new_empty();
+            assert_eq!(dataset, true_dataset);
+        }
+    }
+
+    #[test]
+    fn test_anonym_profiles() {
+        let add_profiles = [
+            AnonymizationProfiles::Patient,
+            AnonymizationProfiles::Institution,
+            AnonymizationProfiles::Device,
+        ];
+
+        let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
+            DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
+            DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
+            DataElement::new(tags::PATIENT_SEX, VR::CS, "M"),
+            DataElement::new(tags::ALLERGIES, VR::LO, "Some Allergies"),
+            DataElement::new(tags::PATIENT_AGE, VR::AS, "063Y"),
+            DataElement::new(tags::PATIENT_SEX_NEUTERED, VR::CS, "ALTERED"),
+            DataElement::new(tags::PATIENT_SIZE, VR::DS, "1.6256"),
+            DataElement::new(tags::PATIENT_WEIGHT, VR::DS, "68.025"),
+            DataElement::new(tags::PATIENT_STATE, VR::LO, "comatose"),
+            DataElement::new(tags::PREGNANCY_STATUS, VR::US, "0004"),
+            DataElement::new(tags::SMOKING_STATUS, VR::CS, "YES"),
+            DataElement::new(tags::INSTITUTION_ADDRESS, VR::ST, "Some address"),
+            DataElement::new(
+                tags::INSTITUTIONAL_DEPARTMENT_NAME,
+                VR::LO,
+                "Some Department Name",
+            ),
+            DataElement::new(tags::INSTITUTION_NAME, VR::LO, "Some Institution Name"),
+            DataElement::new(tags::DEVICE_DESCRIPTION, VR::LO, "device description"),
+            DataElement::new(tags::DEVICE_LABEL, VR::LO, "device label"),
+            DataElement::new(tags::DEVICE_SERIAL_NUMBER, VR::LO, "device serial number"),
+            DataElement::new(
+                tags::MANUFACTURER_DEVICE_IDENTIFIER,
+                VR::ST,
+                "device identifier",
+            ),
+            DataElement::new(tags::PERFORMED_STATION_NAME, VR::SH, "station name"),
+            DataElement::new(
+                tags::SCHEDULED_STATION_NAME,
+                VR::SH,
+                "scheduled station name",
+            ),
+            DataElement::new(tags::SOURCE_MANUFACTURER, VR::LO, "source manufacturer"),
+            DataElement::new(tags::SOURCE_SERIAL_NUMBER, VR::LO, "123-456789"),
+            DataElement::new(tags::STATION_NAME, VR::SH, "station name"),
+        ]);
+
+        anonymize_basic_profile("TST0", &mut dataset);
+        for profile in add_profiles {
+            profile.apply(&mut dataset);
+        }
+
+        let expected_dataset = dicom_object::InMemDicomObject::from_element_iter([
+            DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
+            DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
+            DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
+            DataElement::new(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES"),
+        ]);
+        assert_eq!(dataset, expected_dataset);
+    }
+
+    #[test]
+    fn profile_codes() {
+        let profiles = [
+            AnonymizationProfiles::Patient,
+            AnonymizationProfiles::Institution,
+            AnonymizationProfiles::Device,
+        ];
+
+        let mut dataset = dicom_object::InMemDicomObject::new_empty();
+
+        for profile in profiles {
+            _ = update_deidentification_method_element(&mut dataset, profile);
+            match dataset.element(tags::DEIDENTIFICATION_METHOD) {
+                Ok(el) => match el.to_str() {
+                    Ok(val) => {
+                        dbg!(&val);
+                    }
+                    Err(err) => println!("conversion error: {err}"),
+                },
+                Err(err) => println!("access error: {err}"),
+            }
+        }
+
+        if let Ok(el) = dataset.element(tags::DEIDENTIFICATION_METHOD) {
+            if let Ok(val) = el.to_str() {
+                assert_eq!(val, "DCM_01\\DCM_02\\DCM_03");
+            }
+        } else {
+            panic!("element not found");
         }
     }
 }

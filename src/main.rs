@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use simple_logger::SimpleLogger;
@@ -25,11 +26,7 @@ struct CmdArgs {
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
     integer_start: u16,
 
-    #[arg(
-        long,
-        value_name = "PSEUDONAMES_FILE",
-        required_if_eq("method", "from-file")
-    )]
+    #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
     pseudonames_file: Option<PathBuf>,
 
     #[arg(long)]
@@ -68,7 +65,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => String::new(),
     };
 
-    anonymize::run_anonymization(cmdargs.input_dir, cmdargs.output_dir, method, prefix)?;
+    let profiles = HashSet::from_iter(cmdargs.profile);
+    anonymize::run_anonymization(
+        cmdargs.input_dir,
+        cmdargs.output_dir,
+        method,
+        prefix,
+        profiles,
+    )?;
 
     Ok(())
 }
