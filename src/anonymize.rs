@@ -86,6 +86,8 @@ impl DicomAnonymizer {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let study_dir = utils::create_study_dir(output_dir, &self.study_uid)?;
 
+        todo!("create study uid");
+
         for file in dicom_files {
             let mut dataset = open_file(&file)?;
 
@@ -93,6 +95,7 @@ impl DicomAnonymizer {
 
             for profile in &self.additional_profiles {
                 profile.apply(&mut dataset);
+                update_deidentification_method_element(&mut dataset, profile);
             }
 
             let filepath = study_dir.join(file.file_name().unwrap());
@@ -100,6 +103,8 @@ impl DicomAnonymizer {
             if filepath.exists() {
                 log::warn!("file {} exists, overwriting", filepath.display());
             }
+
+            todo!("add study instance uid, series instance uid, sop instance uid replacement");
 
             dataset.write_to_file(filepath)?;
         }
@@ -111,8 +116,6 @@ impl DicomAnonymizer {
 
         Ok(())
     }
-    //     todo!()
-    // }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
@@ -148,13 +151,7 @@ pub fn run_anonymization(
     prefix: String,
     profiles: HashSet<AnonymizationProfiles>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let dicom_dirs = match utils::find_dicom_dirs(&input_dir) {
-        Ok(dicom_dirs) => dicom_dirs,
-        Err(e) => {
-            log::error!("{e}");
-            return Err(Box::new(e));
-        }
-    };
+    let dicom_dirs = utils::find_dicom_dirs(&input_dir)?;
 
     // TODO: finish this
     let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method, profiles);
@@ -175,9 +172,7 @@ pub fn run_anonymization(
 
 fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
     _ = dataset.put_element(DataElement::new(tags::PATIENT_ID, VR::LO, pseudoname));
-
     _ = dataset.put_element(DataElement::new(tags::PATIENT_NAME, VR::PN, pseudoname));
-
     _ = dataset.put_element(DataElement::new(
         tags::PATIENT_SEX,
         VR::CS,
@@ -226,25 +221,32 @@ fn anonymize_device_profile(dataset: &mut InMemDicomObject) {
 
 fn update_deidentification_method_element(
     dataset: &mut InMemDicomObject,
-    profile: AnonymizationProfiles,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut el = dataset
-        .element_opt(tags::DEIDENTIFICATION_METHOD)?
-        .and_then(|f| f.to_str().ok())
-        .unwrap_or_default()
-        .into_owned();
+    profile: &AnonymizationProfiles,
+) {
+    // let mut el = dataset
+    //     .element_opt(tags::DEIDENTIFICATION_METHOD)?
+    //     .and_then(|f| f.to_str().ok())
+    //     .unwrap_or_default()
+    //     .into_owned();
 
-    if !el.is_empty() {
-        el.push('\\');
+    let mut element_val = match dataset.element_opt(tags::DEIDENTIFICATION_METHOD) {
+        Ok(Some(el)) => el.to_str().map(|s| s.to_string()).unwrap_or_default(),
+        _ => String::new(),
+    };
+
+    if !element_val.is_empty() {
+        element_val.push('\\');
     }
 
     let profile_code = profile.profile_as_string_code();
     println!("adding {0}", profile_code);
-    el.push_str(&profile_code);
+    element_val.push_str(&profile_code);
 
-    dataset.put_element(DataElement::new(tags::DEIDENTIFICATION_METHOD, VR::LO, el));
-
-    Ok(())
+    let _ = dataset.put_element(DataElement::new(
+        tags::DEIDENTIFICATION_METHOD,
+        VR::LO,
+        element_val,
+    ));
 }
 
 fn generate_random_string() -> String {
@@ -269,13 +271,13 @@ mod tests {
 
             anonymize_basic_profile("TST0", &mut dataset);
 
-            let expected_dataset = dicom_object::InMemDicomObject::from_element_iter([
+            let true_dataset = dicom_object::InMemDicomObject::from_element_iter([
                 DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
                 DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
                 DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
                 DataElement::new(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES"),
             ]);
-            assert_eq!(dataset, expected_dataset);
+            assert_eq!(dataset, true_dataset);
         }
 
         #[test]
@@ -293,8 +295,8 @@ mod tests {
 
             anonymize_patient_characteristic_profile(&mut dataset);
 
-            let expected_dataset = dicom_object::InMemDicomObject::new_empty();
-            assert_eq!(dataset, expected_dataset);
+            let true_dataset = dicom_object::InMemDicomObject::new_empty();
+            assert_eq!(dataset, true_dataset);
         }
 
         #[test]
@@ -311,8 +313,8 @@ mod tests {
 
             anonymize_institution_profile(&mut dataset);
 
-            let expected_dataset = dicom_object::InMemDicomObject::new_empty();
-            assert_eq!(dataset, expected_dataset);
+            let true_dataset = dicom_object::InMemDicomObject::new_empty();
+            assert_eq!(dataset, true_dataset);
         }
 
         #[test]
@@ -395,13 +397,13 @@ mod tests {
             profile.apply(&mut dataset);
         }
 
-        let expected_dataset = dicom_object::InMemDicomObject::from_element_iter([
+        let true_dataset = dicom_object::InMemDicomObject::from_element_iter([
             DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
             DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
             DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
             DataElement::new(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES"),
         ]);
-        assert_eq!(dataset, expected_dataset);
+        assert_eq!(dataset, true_dataset);
     }
 
     #[test]
@@ -415,7 +417,7 @@ mod tests {
         let mut dataset = dicom_object::InMemDicomObject::new_empty();
 
         for profile in profiles {
-            _ = update_deidentification_method_element(&mut dataset, profile);
+            update_deidentification_method_element(&mut dataset, &profile);
             match dataset.element(tags::DEIDENTIFICATION_METHOD) {
                 Ok(el) => match el.to_str() {
                     Ok(val) => {

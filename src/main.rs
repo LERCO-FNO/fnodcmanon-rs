@@ -29,7 +29,7 @@ struct CmdArgs {
     #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
     pseudonames_file: Option<PathBuf>,
 
-    #[arg(long)]
+    #[arg(long, value_name = "PROFILE")]
     profile: Vec<AnonymizationProfiles>,
 }
 
@@ -77,6 +77,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn generate_uid(root: &str) -> String {
+    // [TODO]: improve root - date, time, device number, etc.
+    let uuid = dicom_gen_uid::uuid::Uuid::new_v4().to_u128_le();
+
+    let mut root = if root.ends_with("..") {
+        format!("{root}{uuid}")
+    } else {
+        format!("{root}.{uuid}")
+    };
+
+    if root.len() > 64 {
+        root.truncate(64);
+    }
+
+    root
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,13 +102,12 @@ mod tests {
 
     #[test]
     fn test_dicom_uid() {
-        let uid = dicom_gen_uid::gen_uid();
-        println!("{uid:#}");
-        let length2 = uid.len();
-        println!("{length2}");
+        let root = "1.2650.34.5.6.55555.444545";
 
-        let uid = dicom_gen_uid::uuid::Uuid::new_v4();
-        println!("{uid:#}");
+        let uid = generate_uid(root);
+        let len = uid.chars().count();
+        println!("{uid} - {len}");
+        assert_ne!(len, 65);
     }
 
     #[test]
