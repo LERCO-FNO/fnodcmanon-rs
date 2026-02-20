@@ -18,20 +18,29 @@ struct CmdArgs {
     #[arg(short, long, default_value = "./output")]
     output_dir: PathBuf,
 
+    /// Pseudoname prefix
     #[arg(short, long)]
     prefix: Option<String>,
 
+    /// Pseudoname generation method
     #[arg(short, long, default_value = "random-string")]
     method: ArgPseudonameMethod,
 
+    /// Integer to start incrementing from with --method integer-count
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
     integer_start: u16,
 
+    /// File path containing pseudonames, may contain prefix
     #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
     pseudonames_file: Option<PathBuf>,
 
+    /// Anonymization profile to apply
     #[arg(long, value_name = "PROFILE")]
     profile: Vec<AnonymizationProfiles>,
+
+    /// Root UID to use for generating new UID values; must contain period separated digits
+    #[arg(long, value_name = "ROOT", default_value = "2.25", value_parser = validate_uid)]
+    uid_root: Option<String>,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
