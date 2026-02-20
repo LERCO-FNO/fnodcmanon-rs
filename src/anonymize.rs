@@ -33,6 +33,7 @@ pub struct DicomAnonymizer {
     pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
     additional_profiles: HashSet<AnonymizationProfiles>,
+    uid_root: String,
 }
 
 impl DicomAnonymizer {

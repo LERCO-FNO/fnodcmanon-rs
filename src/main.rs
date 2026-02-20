@@ -1,6 +1,7 @@
 use clap::{Parser, ValueEnum};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use uuid;
 
 use simple_logger::SimpleLogger;
 
@@ -77,37 +78,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn generate_uid(root: &str) -> String {
-    // [TODO]: improve root - date, time, device number, etc.
-    let uuid = dicom_gen_uid::uuid::Uuid::new_v4().to_u128_le();
-
-    let mut root = if root.ends_with("..") {
-        format!("{root}{uuid}")
-    } else {
-        format!("{root}.{uuid}")
-    };
-
-    if root.len() > 64 {
-        root.truncate(64);
+fn validate_uid(uid: &str) -> Result<String, String> {
+    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
+        return Err(format!(
+            "'{}' invalid character in UID root, only period separated digits allowed",
+            uid
+        ));
     }
 
-    root
+    if uid.ends_with("..") {
+        return Err(format!("'{}' UID cannot end with '..'", uid));
+    }
+
+    Ok(uid.to_string())
+}
+
+fn generate_uid(root: &str) -> String {
+    let uid = uuid::Uuid::now_v7().to_u128_le();
+    if root.ends_with(".") {
+        format!("{0}{1}", root, uid)
+    } else {
+        format!("{0}.{1}", root, uid)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dicom_gen_uid;
     use std::collections::HashSet;
 
     #[test]
-    fn test_dicom_uid() {
-        let root = "1.2650.34.5.6.55555.444545";
+    fn dicom_uid() {
+        let root = "1.2.840.43.34.34.";
 
         let uid = generate_uid(root);
-        let len = uid.chars().count();
-        println!("{uid} - {len}");
-        assert_ne!(len, 65);
+        println!("{uid}");
+        assert!(uid.starts_with(&root));
+
+        let uid = generate_uid("2.25");
+        println!("{uid}");
+        assert!(uid.starts_with("2.25."));
+
+        let cli_args: Vec<&str> = vec![
+            "--",
+            "--input-dir",
+            "./input",
+            "-p",
+            "TEST",
+            "--uid-root",
+            "1.2.3.4..",
+        ];
+
+        let root_arg = CmdArgs::try_parse_from(cli_args.iter())
+            .unwrap()
+            .uid_root
+            .unwrap();
+        let uid = generate_uid(&root_arg);
+        println!("{uid}");
+        assert!(uid.starts_with("1.2.3.4."));
     }
 
     #[test]
