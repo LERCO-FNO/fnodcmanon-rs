@@ -6,7 +6,6 @@ use dicom_object::{InMemDicomObject, open_file};
 use rand::{Rng, distr::Alphanumeric};
 use std::{
     collections::{HashMap, HashSet},
-    io,
     path::{Path, PathBuf},
 };
 
@@ -86,7 +85,7 @@ impl DicomAnonymizer {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let study_dir = utils::create_study_dir(output_dir, &self.study_uid)?;
 
-        todo!("create study uid");
+        // todo!("create study uid");
 
         for file in dicom_files {
             let mut dataset = open_file(&file)?;
@@ -104,7 +103,7 @@ impl DicomAnonymizer {
                 log::warn!("file {} exists, overwriting", filepath.display());
             }
 
-            todo!("add study instance uid, series instance uid, sop instance uid replacement");
+            // todo!("add study instance uid, series instance uid, sop instance uid replacement");
 
             dataset.write_to_file(filepath)?;
         }
@@ -120,8 +119,11 @@ impl DicomAnonymizer {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
 pub enum AnonymizationProfiles {
+    /// Patient related DICOM tags
     Patient,
+    /// Institution related DICOM tags
     Institution,
+    /// Device related DICOM tags
     Device,
 }
 
