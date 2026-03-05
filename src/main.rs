@@ -12,13 +12,15 @@ use fnodcmanon::utils;
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 struct CmdArgs {
+    /// Path to directory with DICOM files
     #[arg(short, long)]
     input_dir: PathBuf,
 
+    /// Path to output directory
     #[arg(short, long, default_value = "./output")]
     output_dir: PathBuf,
 
-    /// Pseudoname prefix
+    /// Anonymization prefix to set before pseudoname
     #[arg(short, long)]
     prefix: Option<String>,
 
@@ -26,11 +28,11 @@ struct CmdArgs {
     #[arg(short, long, default_value = "random-string")]
     method: ArgPseudonameMethod,
 
-    /// Integer to start incrementing from with --method integer-count
+    /// Initial integer counter value
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
     integer_start: u16,
 
-    /// File path containing pseudonames, may contain prefix
+    /// Path to .txt file containing pseudonames, may contain prefixes
     #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
     pseudonames_file: Option<PathBuf>,
 
@@ -45,8 +47,11 @@ struct CmdArgs {
 
 #[derive(Debug, Clone, ValueEnum)]
 enum ArgPseudonameMethod {
+    /// Generate 10 random alphanumeric characters
     RandomString,
+    /// Increment a counter from an initial value, ex. <prefix>_1, <prefix>_2, ...
     IntegerCount,
+    /// Use pseudoname from a .txt file, may contain prefixes
     FromFile,
 }
 
