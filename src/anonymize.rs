@@ -10,7 +10,7 @@ use std::{
 };
 use uuid;
 
-use crate::utils;
+use crate::utils::{create_study_dir, find_dicom_dirs, get_dicom_files};
 
 #[derive(Debug, Default)]
 pub enum PseudonameMethod {
@@ -85,7 +85,7 @@ impl DicomAnonymizer {
         dicom_files: Vec<PathBuf>,
         output_dir: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let study_dir = utils::create_study_dir(output_dir, &self.study_uid)?;
+        let study_dir = create_study_dir(output_dir, &self.study_uid)?; // utils::create_study_dir(output_dir, &self.study_uid)?;
 
         // todo!("create study uid");
 
@@ -155,13 +155,14 @@ pub fn run_anonymization(
     prefix: String,
     profiles: HashSet<AnonymizationProfiles>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let dicom_dirs = utils::find_dicom_dirs(&input_dir)?;
+    let dicom_dirs = find_dicom_dirs(&input_dir)?; // utils::find_dicom_dirs(&input_dir)?;
 
     // TODO: finish this
     let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method, profiles);
 
     for dir in dicom_dirs {
-        let dicom_files = match utils::get_dicom_files(&dir) {
+        let dicom_files = match get_dicom_files(&dir) {
+            // utils::get_dicom_files(&dir) {
             Some(files) => files,
             None => continue,
         };

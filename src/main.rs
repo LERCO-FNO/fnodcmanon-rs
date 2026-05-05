@@ -4,9 +4,10 @@ use std::path::PathBuf;
 
 use simple_logger::SimpleLogger;
 
-use fnodcmanon::anonymize::PseudonameMethod;
-use fnodcmanon::anonymize::{self, AnonymizationProfiles};
-use fnodcmanon::utils;
+mod anonymize;
+mod utils;
+
+use anonymize::{AnonymizationProfiles, PseudonameMethod};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -74,10 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let prefix = match cmdargs.prefix {
-        Some(p) => p,
-        None => String::new(),
-    };
+    let prefix = cmdargs.prefix.unwrap_or(String::new());
 
     let profiles = HashSet::from_iter(cmdargs.profile);
     anonymize::run_anonymization(
