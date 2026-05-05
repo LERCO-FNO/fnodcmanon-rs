@@ -8,6 +8,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
+use uuid;
 
 use crate::utils;
 
@@ -32,7 +33,7 @@ pub struct DicomAnonymizer {
     pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
     additional_profiles: HashSet<AnonymizationProfiles>,
-    uid_root: String,
+    // uid_root: String,
 }
 
 impl DicomAnonymizer {
@@ -257,6 +258,15 @@ fn generate_random_string() -> String {
     (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
 }
 
+pub fn generate_uid(root: &str) -> String {
+    let uid = uuid::Uuid::now_v7().to_u128_le();
+    if root.ends_with(".") {
+        format!("{0}{1}", root, uid)
+    } else {
+        format!("{0}.{1}", root, uid)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,5 +449,18 @@ mod tests {
         } else {
             panic!("element not found");
         }
+    }
+
+    #[test]
+    fn dicom_uid() {
+        let root = "1.2.840.43.34.34.";
+
+        let uid = generate_uid(root);
+        println!("{uid}");
+        assert!(uid.starts_with(&root));
+
+        let uid = generate_uid("2.25");
+        println!("{uid}");
+        assert!(uid.starts_with("2.25."));
     }
 }

@@ -1,7 +1,6 @@
 use clap::{Parser, ValueEnum};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use uuid;
 
 use simple_logger::SimpleLogger;
 
@@ -28,11 +27,11 @@ struct CmdArgs {
     #[arg(short, long, default_value = "random-string")]
     method: ArgPseudonameMethod,
 
-    /// Initial integer counter value
+    /// Initial integer counter value, requires --method integer-count
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
     integer_start: u16,
 
-    /// Path to .txt file containing pseudonames, may contain prefixes
+    /// Path to .txt file containing pseudonames, requires --method from-file
     #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
     pseudonames_file: Option<PathBuf>,
 
@@ -47,9 +46,9 @@ struct CmdArgs {
 
 #[derive(Debug, Clone, ValueEnum)]
 enum ArgPseudonameMethod {
-    /// Generate 10 random alphanumeric characters
+    /// Generate ten-character alphanumeric string
     RandomString,
-    /// Increment a counter from an initial value, ex. <prefix>_1, <prefix>_2, ...
+    /// Increment <integer_start> from initial value, ex. <prefix>_1, <prefix>_2, ...
     IntegerCount,
     /// Use pseudoname from a .txt file, may contain prefixes
     FromFile,
@@ -107,50 +106,10 @@ fn validate_uid(uid: &str) -> Result<String, String> {
     Ok(uid.to_string())
 }
 
-fn generate_uid(root: &str) -> String {
-    let uid = uuid::Uuid::now_v7().to_u128_le();
-    if root.ends_with(".") {
-        format!("{0}{1}", root, uid)
-    } else {
-        format!("{0}.{1}", root, uid)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashSet;
-
-    #[test]
-    fn dicom_uid() {
-        let root = "1.2.840.43.34.34.";
-
-        let uid = generate_uid(root);
-        println!("{uid}");
-        assert!(uid.starts_with(&root));
-
-        let uid = generate_uid("2.25");
-        println!("{uid}");
-        assert!(uid.starts_with("2.25."));
-
-        let cli_args: Vec<&str> = vec![
-            "--",
-            "--input-dir",
-            "./input",
-            "-p",
-            "TEST",
-            "--uid-root",
-            "1.2.3.4..",
-        ];
-
-        let root_arg = CmdArgs::try_parse_from(cli_args.iter())
-            .unwrap()
-            .uid_root
-            .unwrap();
-        let uid = generate_uid(&root_arg);
-        println!("{uid}");
-        assert!(uid.starts_with("1.2.3.4."));
-    }
 
     #[test]
     fn arg_from_file() -> Result<(), Box<dyn std::error::Error>> {
