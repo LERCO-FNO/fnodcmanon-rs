@@ -9,6 +9,8 @@ mod utils;
 
 use anonymize::{AnonymizationProfiles, PseudonameMethod};
 
+use crate::utils::pseudoname_file_exists;
+
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
 struct CmdArgs {
@@ -32,8 +34,8 @@ struct CmdArgs {
     #[arg(long, value_name = "INTEGER_START", default_value = "1")]
     integer_start: u16,
 
-    /// Path to .txt file containing pseudonames, requires --method from-file
-    #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"))]
+    /// Path to .txt file containing pseudonames with optional prefixes; requires --method from-file
+    #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"), value_parser = pseudoname_file_exists)]
     pseudonames_file: Option<PathBuf>,
 
     /// Anonymization profile to apply
@@ -51,7 +53,7 @@ enum ArgPseudonameMethod {
     RandomString,
     /// Increment <integer_start> from initial value, ex. <prefix>_1, <prefix>_2, ...
     IntegerCount,
-    /// Use pseudoname from a .txt file, may contain prefixes
+    /// Use pseudonames from a .txt file
     FromFile,
 }
 
@@ -67,12 +69,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
             current: cmdargs.integer_start,
         },
-        ArgPseudonameMethod::FromFile => {
-            let path = utils::pseudoname_file_exists(cmdargs.pseudonames_file.unwrap())?;
-            PseudonameMethod::FromMap {
-                map: utils::read_pseudonames_files(&path)?,
-            }
-        }
+        ArgPseudonameMethod::FromFile => PseudonameMethod::FromMap {
+            map: utils::read_pseudonames_files(cmdargs.pseudonames_file.unwrap())?,
+        },
     };
 
     let prefix = cmdargs.prefix.unwrap_or(String::new());
@@ -138,12 +137,9 @@ mod tests {
             ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
                 current: cmdargs.integer_start,
             },
-            ArgPseudonameMethod::FromFile => {
-                let path = utils::pseudoname_file_exists(cmdargs.pseudonames_file.unwrap())?;
-                PseudonameMethod::FromMap {
-                    map: utils::read_pseudonames_files(&path)?,
-                }
-            }
+            ArgPseudonameMethod::FromFile => PseudonameMethod::FromMap {
+                map: utils::read_pseudonames_files(cmdargs.pseudonames_file.unwrap())?,
+            },
         };
 
         println!("{method:#?}");

@@ -68,31 +68,26 @@ fn get_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
     Ok(dicom_dirs)
 }
 
-pub fn pseudoname_file_exists(path: PathBuf) -> Result<PathBuf, io::Error> {
+pub fn pseudoname_file_exists(path: &str) -> Result<PathBuf, io::Error> {
+    let path = PathBuf::from(path);
     if !path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!(
-                "pseudonames file not found at given path `{0}`",
-                path.display()
-            ),
+            format!("pseudonames file path not found `{0}`", path.display()),
         ));
     }
 
     if !path.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::IsADirectory,
-            format!(
-                "given pseudonames file path is a directory `{0}`",
-                path.display()
-            ),
+            format!("pseudonames file path is a directory `{0}`", path.display()),
         ));
     }
 
     Ok(path)
 }
 
-pub fn read_pseudonames_files(path: &Path) -> Result<HashMap<String, String>, io::Error> {
+pub fn read_pseudonames_files(path: PathBuf) -> Result<HashMap<String, String>, io::Error> {
     let content = std::fs::read_to_string(path)?;
 
     let mut pseudonames_map: HashMap<String, String> = HashMap::new();
