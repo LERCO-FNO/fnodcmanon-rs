@@ -8,8 +8,7 @@ mod anonymize;
 mod utils;
 
 use anonymize::{AnonymizationProfiles, PseudonameMethod};
-
-use crate::utils::pseudoname_file_exists;
+use utils::pseudoname_file_exists;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -38,7 +37,7 @@ struct CmdArgs {
     #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"), value_parser = pseudoname_file_exists)]
     pseudonames_file: Option<PathBuf>,
 
-    /// Anonymization profile to apply
+    /// Anonymization profiles to apply
     #[arg(long, value_name = "PROFILE")]
     profile: Vec<AnonymizationProfiles>,
 
@@ -75,7 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let prefix = cmdargs.prefix.unwrap_or(String::new());
-
     let profiles = HashSet::from_iter(cmdargs.profile);
     let uid_root = cmdargs.uid_root.unwrap();
 

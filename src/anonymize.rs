@@ -1,6 +1,6 @@
 // use std::error::Error;
 use clap::ValueEnum;
-use dicom_core::{DataElement, VR};
+use dicom_core::VR;
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, open_file};
 use rand::{Rng, distr::Alphanumeric};
@@ -8,7 +8,6 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
-use uuid;
 
 use crate::utils::{create_study_dir, find_dicom_dirs, get_dicom_files};
 
@@ -115,14 +114,14 @@ impl DicomAnonymizer {
                 log::warn!("file {} exists, overwriting", filepath.display());
             }
 
-            // todo!("add study instance uid, series instance uid, sop instance uid replacement");
-
             dataset.write_to_file(filepath)?;
         }
 
-        println!(
+        log::debug!(
             "old id {0}, old name {1}, new id/name {2}",
-            self.old_id, self.old_name, self.pseudoname
+            self.old_id,
+            self.old_name,
+            self.pseudoname
         );
 
         Ok(())
@@ -173,33 +172,23 @@ pub fn run_anonymization(
 
     for dir in dicom_dirs {
         let dicom_files = match get_dicom_files(&dir) {
-            // utils::get_dicom_files(&dir) {
             Some(files) => files,
             None => continue,
         };
 
-        dicom_anonymizer.get_basic_tags(dicom_files.first().unwrap())?;
-        dicom_anonymizer.set_pseudoname();
-        dicom_anonymizer.anonymize_study(dicom_files, &output_dir)?;
+        anonymizer.get_basic_tags(dicom_files.first().unwrap())?;
+        anonymizer.set_pseudoname();
+        anonymizer.anonymize_study(dicom_files, &output_dir)?;
     }
 
     Ok(())
 }
 
 fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
-    _ = dataset.put_element(DataElement::new(tags::PATIENT_ID, VR::LO, pseudoname));
-    _ = dataset.put_element(DataElement::new(tags::PATIENT_NAME, VR::PN, pseudoname));
-    _ = dataset.put_element(DataElement::new(
-        tags::PATIENT_SEX,
-        VR::CS,
-        String::from("O"),
-    ));
-
-    _ = dataset.put_element(DataElement::new(
-        tags::PATIENT_IDENTITY_REMOVED,
-        VR::CS,
-        "YES",
-    ));
+    dataset.put_str(tags::PATIENT_ID, VR::LO, pseudoname);
+    dataset.put_str(tags::PATIENT_NAME, VR::PN, pseudoname);
+    dataset.put_str(tags::PATIENT_SEX, VR::CS, String::from("O"));
+    dataset.put_str(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES");
 }
 
 fn anonymize_patient_characteristic_profile(dataset: &mut InMemDicomObject) {
@@ -235,16 +224,24 @@ fn anonymize_device_profile(dataset: &mut InMemDicomObject) {
     dataset.remove_element(tags::STATION_NAME);
 }
 
+fn generate_random_string() -> String {
+    let mut rng = rand::rng();
+    (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
+}
+
+fn generate_uid(root: &str) -> String {
+    let uid = uuid::Uuid::now_v7().to_u128_le();
+    if root.ends_with(".") {
+        format!("{0}{1}", root, uid)
+    } else {
+        format!("{0}.{1}", root, uid)
+    }
+}
+
 fn update_deidentification_method_element(
     dataset: &mut InMemDicomObject,
     profile: &AnonymizationProfiles,
 ) {
-    // let mut el = dataset
-    //     .element_opt(tags::DEIDENTIFICATION_METHOD)?
-    //     .and_then(|f| f.to_str().ok())
-    //     .unwrap_or_default()
-    //     .into_owned();
-
     let mut element_val = match dataset.element_opt(tags::DEIDENTIFICATION_METHOD) {
         Ok(Some(el)) => el.to_str().map(|s| s.to_string()).unwrap_or_default(),
         _ => String::new(),
@@ -255,14 +252,10 @@ fn update_deidentification_method_element(
     }
 
     let profile_code = profile.profile_as_string_code();
-    println!("adding {0}", profile_code);
+    log::debug!("adding deidentification code {0}", profile_code);
     element_val.push_str(&profile_code);
 
-    let _ = dataset.put_element(DataElement::new(
-        tags::DEIDENTIFICATION_METHOD,
-        VR::LO,
-        element_val,
-    ));
+    dataset.put_str(tags::DEIDENTIFICATION_METHOD, VR::LO, element_val);
 }
 
 fn update_uids(
