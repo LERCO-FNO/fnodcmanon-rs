@@ -44,6 +44,10 @@ struct CmdArgs {
     /// Root UID to use for generating new UID values; must contain period separated digits
     #[arg(long, value_name = "ROOT", default_value = "2.25", value_parser = validate_uid)]
     uid_root: Option<String>,
+
+    /// Print at DEBUG logging level
+    #[arg(long)]
+    debug: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -61,7 +65,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dbg!(&cmdargs);
 
-    SimpleLogger::new().init()?;
+    SimpleLogger::new()
+        .with_level(if cmdargs.debug {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Info
+        })
+        .init()?;
 
     let method = match cmdargs.method {
         ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
