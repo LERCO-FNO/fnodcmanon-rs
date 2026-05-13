@@ -110,7 +110,7 @@ pub fn read_pseudonames_files(path: PathBuf) -> Result<HashMap<String, String>, 
 }
 
 pub fn get_dicom_files(dir: &Path) -> Option<Vec<PathBuf>> {
-    let entries: fs::ReadDir = match fs::read_dir(&dir) {
+    let entries: fs::ReadDir = match fs::read_dir(dir) {
         Ok(r) => r,
         Err(e) => {
             log::error!("{e}");
@@ -120,7 +120,11 @@ pub fn get_dicom_files(dir: &Path) -> Option<Vec<PathBuf>> {
     let files: Vec<PathBuf> = entries
         .filter_map(Result::ok)
         .map(|x| x.path())
-        .filter(|x| x.is_file() && x.file_name() != Some("DICOMDIR".as_ref()))
+        .filter(|x| {
+            x.is_file()
+                && x.extension().is_none()
+                && x.file_name().and_then(|x| x.to_str()) != Some("DICOMDIR")
+        })
         .collect();
 
     if files.is_empty() {
