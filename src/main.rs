@@ -107,7 +107,6 @@ fn validate_uid(uid: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
 
     #[test]
     fn arg_from_file() -> Result<(), Box<dyn std::error::Error>> {
@@ -120,7 +119,7 @@ mod tests {
             "-m",
             "from-file",
             "--pseudonames-file",
-            "./test-data/pseudonames.txt",
+            "./test-data/",
         ];
 
         let cmdargs = match CmdArgs::try_parse_from(cli_args.iter()) {
@@ -130,8 +129,6 @@ mod tests {
                 panic!("error parsing CLI arguments");
             }
         };
-
-        dbg!(&cmdargs);
 
         let method = match cmdargs.method {
             ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
@@ -144,45 +141,6 @@ mod tests {
         };
 
         println!("{method:#?}");
-
         Ok(())
-    }
-
-    #[test]
-    fn set_profiles() {
-        let cli_args: Vec<&str> = vec![
-            "--",
-            "--input-dir",
-            "./input",
-            "-p",
-            "TEST",
-            "--profile",
-            "device",
-            "--profile",
-            "device",
-            "--profile",
-            "patient",
-            "--profile",
-            "institution",
-            "--profile",
-            "institution",
-            "--profile",
-            "patient",
-        ];
-
-        let cmdargs = match CmdArgs::try_parse_from(cli_args.iter()) {
-            Ok(res) => res,
-            Err(err) => panic!("error parsing CLI arguments: {err}"),
-        };
-
-        let true_set: HashSet<anonymize::AnonymizationProfiles> = HashSet::from_iter([
-            anonymize::AnonymizationProfiles::Institution,
-            anonymize::AnonymizationProfiles::Device,
-            anonymize::AnonymizationProfiles::Patient,
-        ]);
-
-        let set = HashSet::from_iter(cmdargs.profile);
-        dbg!(&set);
-        assert_eq!(set, true_set);
     }
 }

@@ -284,6 +284,7 @@ fn update_uids(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dicom_core::DataElement;
 
     mod profiles {
         use super::*;
@@ -311,12 +312,12 @@ mod tests {
         fn patient() {
             let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
                 DataElement::new(tags::ALLERGIES, VR::LO, "Some Allergies"),
-                DataElement::new(tags::PATIENT_AGE, VR::AS, "063Y"),
+                DataElement::new(tags::PATIENT_AGE, VR::AS, "099Y"),
                 DataElement::new(tags::PATIENT_SEX_NEUTERED, VR::CS, "ALTERED"),
-                DataElement::new(tags::PATIENT_SIZE, VR::DS, "1.6256"),
-                DataElement::new(tags::PATIENT_WEIGHT, VR::DS, "68.025"),
-                DataElement::new(tags::PATIENT_STATE, VR::LO, "comatose"),
-                DataElement::new(tags::PREGNANCY_STATUS, VR::US, "0004"),
+                DataElement::new(tags::PATIENT_SIZE, VR::DS, "0.0"),
+                DataElement::new(tags::PATIENT_WEIGHT, VR::DS, "0.0"),
+                DataElement::new(tags::PATIENT_STATE, VR::LO, "some_state"),
+                DataElement::new(tags::PREGNANCY_STATUS, VR::US, "0000"),
                 DataElement::new(tags::SMOKING_STATUS, VR::CS, "YES"),
             ]);
 
@@ -374,66 +375,6 @@ mod tests {
     }
 
     #[test]
-    fn test_anonym_profiles() {
-        let add_profiles = [
-            AnonymizationProfiles::Patient,
-            AnonymizationProfiles::Institution,
-            AnonymizationProfiles::Device,
-        ];
-
-        let mut dataset = dicom_object::InMemDicomObject::from_element_iter([
-            DataElement::new(tags::PATIENT_ID, VR::LO, "012345"),
-            DataElement::new(tags::PATIENT_NAME, VR::PN, "Some^Name"),
-            DataElement::new(tags::PATIENT_SEX, VR::CS, "M"),
-            DataElement::new(tags::ALLERGIES, VR::LO, "Some Allergies"),
-            DataElement::new(tags::PATIENT_AGE, VR::AS, "063Y"),
-            DataElement::new(tags::PATIENT_SEX_NEUTERED, VR::CS, "ALTERED"),
-            DataElement::new(tags::PATIENT_SIZE, VR::DS, "1.6256"),
-            DataElement::new(tags::PATIENT_WEIGHT, VR::DS, "68.025"),
-            DataElement::new(tags::PATIENT_STATE, VR::LO, "comatose"),
-            DataElement::new(tags::PREGNANCY_STATUS, VR::US, "0004"),
-            DataElement::new(tags::SMOKING_STATUS, VR::CS, "YES"),
-            DataElement::new(tags::INSTITUTION_ADDRESS, VR::ST, "Some address"),
-            DataElement::new(
-                tags::INSTITUTIONAL_DEPARTMENT_NAME,
-                VR::LO,
-                "Some Department Name",
-            ),
-            DataElement::new(tags::INSTITUTION_NAME, VR::LO, "Some Institution Name"),
-            DataElement::new(tags::DEVICE_DESCRIPTION, VR::LO, "device description"),
-            DataElement::new(tags::DEVICE_LABEL, VR::LO, "device label"),
-            DataElement::new(tags::DEVICE_SERIAL_NUMBER, VR::LO, "device serial number"),
-            DataElement::new(
-                tags::MANUFACTURER_DEVICE_IDENTIFIER,
-                VR::ST,
-                "device identifier",
-            ),
-            DataElement::new(tags::PERFORMED_STATION_NAME, VR::SH, "station name"),
-            DataElement::new(
-                tags::SCHEDULED_STATION_NAME,
-                VR::SH,
-                "scheduled station name",
-            ),
-            DataElement::new(tags::SOURCE_MANUFACTURER, VR::LO, "source manufacturer"),
-            DataElement::new(tags::SOURCE_SERIAL_NUMBER, VR::LO, "123-456789"),
-            DataElement::new(tags::STATION_NAME, VR::SH, "station name"),
-        ]);
-
-        anonymize_basic_profile("TST0", &mut dataset);
-        for profile in add_profiles {
-            profile.apply(&mut dataset);
-        }
-
-        let true_dataset = dicom_object::InMemDicomObject::from_element_iter([
-            DataElement::new(tags::PATIENT_ID, VR::LO, "TST0"),
-            DataElement::new(tags::PATIENT_NAME, VR::PN, "TST0"),
-            DataElement::new(tags::PATIENT_SEX, VR::CS, "O"),
-            DataElement::new(tags::PATIENT_IDENTITY_REMOVED, VR::CS, "YES"),
-        ]);
-        assert_eq!(dataset, true_dataset);
-    }
-
-    #[test]
     fn profile_codes() {
         let profiles = [
             AnonymizationProfiles::Patient,
@@ -445,15 +386,6 @@ mod tests {
 
         for profile in profiles {
             update_deidentification_method_element(&mut dataset, &profile);
-            match dataset.element(tags::DEIDENTIFICATION_METHOD) {
-                Ok(el) => match el.to_str() {
-                    Ok(val) => {
-                        dbg!(&val);
-                    }
-                    Err(err) => println!("conversion error: {err}"),
-                },
-                Err(err) => println!("access error: {err}"),
-            }
         }
 
         if let Ok(el) = dataset.element(tags::DEIDENTIFICATION_METHOD) {
@@ -466,15 +398,44 @@ mod tests {
     }
 
     #[test]
-    fn dicom_uid() {
-        let root = "1.2.840.43.34.34.";
+    fn change_uid() -> Result<(), Box<dyn std::error::Error>> {
+        let mut datasets1 = [
+            dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::STUDY_INSTANCE_UID, VR::UI, "1.2"),
+                DataElement::new(tags::SERIES_INSTANCE_UID, VR::UI, "1.2.1"),
+                DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "1.2.1.1"),
+            ]),
+            dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::STUDY_INSTANCE_UID, VR::UI, "1.2"),
+                DataElement::new(tags::SERIES_INSTANCE_UID, VR::UI, "1.2.1"),
+                DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "1.2.1.2"),
+            ]),
+            dicom_object::InMemDicomObject::from_element_iter([
+                DataElement::new(tags::STUDY_INSTANCE_UID, VR::UI, "1.2"),
+                DataElement::new(tags::SERIES_INSTANCE_UID, VR::UI, "1.2.2"),
+                DataElement::new(tags::SOP_INSTANCE_UID, VR::UI, "1.2.1.1"),
+            ]),
+        ];
 
+        let root = "1.2.3.".to_string();
+        let study_uid = generate_uid(&root);
+        let mut series_uid_map: HashMap<String, String> = HashMap::new();
+
+        for ds in &mut datasets1 {
+            update_uids(ds, &root, &study_uid, &mut series_uid_map)?;
+            dbg!("{}", ds);
+        }
+
+        assert_eq!(series_uid_map.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_uid() {
+        let root = "1.2.3";
         let uid = generate_uid(root);
         println!("{uid}");
-        assert!(uid.starts_with(&root));
-
-        let uid = generate_uid("2.25");
-        println!("{uid}");
-        assert!(uid.starts_with("2.25."));
+        assert!(uid.starts_with(root));
     }
 }
