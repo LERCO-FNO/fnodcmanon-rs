@@ -33,7 +33,7 @@ pub struct DicomAnonymizer {
     pseudoname: String, // applied to PatientName, PatientID
     study_uid: String,
     additional_profiles: HashSet<AnonymizationProfiles>,
-    // uid_root: String,
+    uid_root: String,
 }
 
 impl DicomAnonymizer {
@@ -41,11 +41,13 @@ impl DicomAnonymizer {
         prefix: String,
         method: PseudonameMethod,
         profiles: HashSet<AnonymizationProfiles>,
+        uid_root: String,
     ) -> Self {
         Self {
             prefix,
             pseudoname_method: method,
             additional_profiles: profiles,
+            uid_root,
             ..Default::default()
         }
     }
@@ -85,10 +87,10 @@ impl DicomAnonymizer {
         dicom_files: Vec<PathBuf>,
         output_dir: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let study_dir = create_study_dir(output_dir, &self.study_uid)?; // utils::create_study_dir(output_dir, &self.study_uid)?;
+        let study_uid = generate_uid(&self.uid_root);
+        let study_dir = create_study_dir(output_dir, &study_uid)?;
 
-        // todo!("create study uid");
-
+        let mut series_uid_map: HashMap<String, String> = HashMap::new();
         for file in dicom_files {
             let mut dataset = open_file(&file)?;
 
@@ -98,6 +100,14 @@ impl DicomAnonymizer {
                 profile.apply(&mut dataset);
                 update_deidentification_method_element(&mut dataset, profile);
             }
+
+            // TODO: possibly improve error handling
+            update_uids(
+                &mut dataset,
+                &self.uid_root,
+                &study_uid,
+                &mut series_uid_map,
+            )?;
 
             let filepath = study_dir.join(file.file_name().unwrap());
 
@@ -154,11 +164,12 @@ pub fn run_anonymization(
     method: PseudonameMethod,
     prefix: String,
     profiles: HashSet<AnonymizationProfiles>,
+    uid_root: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let dicom_dirs = find_dicom_dirs(&input_dir)?; // utils::find_dicom_dirs(&input_dir)?;
+    let dicom_dirs = find_dicom_dirs(&input_dir)?;
 
     // TODO: finish this
-    let mut dicom_anonymizer = DicomAnonymizer::new(prefix, method, profiles);
+    let mut anonymizer = DicomAnonymizer::new(prefix, method, profiles, uid_root);
 
     for dir in dicom_dirs {
         let dicom_files = match get_dicom_files(&dir) {
@@ -254,18 +265,27 @@ fn update_deidentification_method_element(
     ));
 }
 
-fn generate_random_string() -> String {
-    let mut rng = rand::rng();
-    (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
-}
+fn update_uids(
+    dataset: &mut InMemDicomObject,
+    uid_root: &str,
+    study_uid: &str,
+    series_uid_map: &mut HashMap<String, String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let old_series_uid = dataset
+        .element(tags::SERIES_INSTANCE_UID)?
+        .to_str()?
+        .to_string();
 
-pub fn generate_uid(root: &str) -> String {
-    let uid = uuid::Uuid::now_v7().to_u128_le();
-    if root.ends_with(".") {
-        format!("{0}{1}", root, uid)
-    } else {
-        format!("{0}.{1}", root, uid)
-    }
+    let new_series_uid = series_uid_map
+        .entry(old_series_uid)
+        .or_insert_with(|| generate_uid(uid_root))
+        .clone();
+
+    dataset.put_str(tags::STUDY_INSTANCE_UID, VR::UI, study_uid);
+    dataset.put_str(tags::SERIES_INSTANCE_UID, VR::UI, new_series_uid);
+    dataset.put_str(tags::SOP_INSTANCE_UID, VR::UI, generate_uid(uid_root));
+
+    Ok(())
 }
 
 #[cfg(test)]

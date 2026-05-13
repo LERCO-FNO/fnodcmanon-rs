@@ -77,12 +77,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let prefix = cmdargs.prefix.unwrap_or(String::new());
 
     let profiles = HashSet::from_iter(cmdargs.profile);
+    let uid_root = cmdargs.uid_root.unwrap();
+
     anonymize::run_anonymization(
         cmdargs.input_dir,
         cmdargs.output_dir,
         method,
         prefix,
         profiles,
+        uid_root,
     )?;
 
     Ok(())
