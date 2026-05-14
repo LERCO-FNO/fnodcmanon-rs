@@ -7,7 +7,7 @@ use simple_logger::SimpleLogger;
 mod anonymize;
 mod utils;
 
-use anonymize::{AnonymizationProfiles, PseudonameMethod};
+use anonymize::{AnonymizationProfiles, DicomAnonymizer, PseudonameMethod};
 use utils::pseudoname_file_exists;
 
 #[derive(Debug, Parser)]
@@ -87,14 +87,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let profiles = HashSet::from_iter(cmdargs.profile);
     let uid_root = cmdargs.uid_root.unwrap();
 
-    anonymize::run_anonymization(
-        cmdargs.input_dir,
-        cmdargs.output_dir,
-        method,
-        prefix,
-        profiles,
-        uid_root,
-    )?;
+    let mut anonymizer = DicomAnonymizer::new(prefix, method, profiles, uid_root);
+
+    anonymizer.run_anonymization(cmdargs.input_dir, cmdargs.output_dir)?;
 
     Ok(())
 }

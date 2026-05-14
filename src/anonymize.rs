@@ -36,7 +36,7 @@ pub struct DicomAnonymizer {
 }
 
 impl DicomAnonymizer {
-    fn new(
+    pub fn new(
         prefix: String,
         method: PseudonameMethod,
         profiles: HashSet<AnonymizationProfiles>,
@@ -126,6 +126,27 @@ impl DicomAnonymizer {
 
         Ok(())
     }
+
+    pub fn run_anonymization(
+        &mut self,
+        input_dir: PathBuf,
+        output_dir: PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let dicom_dirs = find_dicom_dirs(&input_dir)?;
+
+        for dir in dicom_dirs {
+            let dicom_files = match get_dicom_files(&dir) {
+                Some(files) => files,
+                None => continue,
+            };
+
+            self.get_basic_tags(dicom_files.first().unwrap())?;
+            self.set_pseudoname();
+            self.anonymize_study(dicom_files, &output_dir)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
@@ -157,32 +178,6 @@ impl AnonymizationProfiles {
     }
 }
 
-pub fn run_anonymization(
-    input_dir: PathBuf,
-    output_dir: PathBuf,
-    method: PseudonameMethod,
-    prefix: String,
-    profiles: HashSet<AnonymizationProfiles>,
-    uid_root: String,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let dicom_dirs = find_dicom_dirs(&input_dir)?;
-
-    // TODO: finish this
-    let mut anonymizer = DicomAnonymizer::new(prefix, method, profiles, uid_root);
-
-    for dir in dicom_dirs {
-        let dicom_files = match get_dicom_files(&dir) {
-            Some(files) => files,
-            None => continue,
-        };
-
-        anonymizer.get_basic_tags(dicom_files.first().unwrap())?;
-        anonymizer.set_pseudoname();
-        anonymizer.anonymize_study(dicom_files, &output_dir)?;
-    }
-
-    Ok(())
-}
 
 fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
     dataset.put_str(tags::PATIENT_ID, VR::LO, pseudoname);
