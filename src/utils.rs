@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+use crate::error::UIDRootError;
+
 pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
     if !input_path.exists() {
         return Err(io::Error::new(
@@ -146,4 +148,18 @@ pub fn create_study_dir(output_parent_path: &Path, study_uid: &str) -> Result<Pa
     log::info!("created directory `{}`", study_dir.display());
 
     Ok(study_dir)
+}
+
+pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
+    let uid = uid.to_string();
+
+    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
+        return Err(UIDRootError::InvalidCharacter(uid));
+    }
+
+    if uid.contains("..") {
+        return Err(UIDRootError::ExtraPeriod(uid));
+    }
+
+    Ok(uid)
 }

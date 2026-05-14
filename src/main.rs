@@ -5,10 +5,11 @@ use std::path::PathBuf;
 use simple_logger::SimpleLogger;
 
 mod anonymize;
+mod error;
 mod utils;
 
 use anonymize::{AnonymizationProfiles, DicomAnonymizer, PseudonameMethod};
-use utils::pseudoname_file_exists;
+use utils::{pseudoname_file_exists, validate_uid};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -92,21 +93,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     anonymizer.run_anonymization(cmdargs.input_dir, cmdargs.output_dir)?;
 
     Ok(())
-}
-
-fn validate_uid(uid: &str) -> Result<String, String> {
-    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
-        return Err(format!(
-            "'{}' invalid character in UID root, only period separated digits allowed",
-            uid
-        ));
-    }
-
-    if uid.ends_with("..") {
-        return Err(format!("'{}' UID cannot end with '..'", uid));
-    }
-
-    Ok(uid.to_string())
 }
 
 #[cfg(test)]
