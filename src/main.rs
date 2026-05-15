@@ -1,4 +1,4 @@
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -11,9 +11,11 @@ mod utils;
 use anonymize::{AnonymizationProfiles, DicomAnonymizer, PseudonameMethod};
 use utils::{pseudoname_file_exists, validate_uid};
 
+use crate::utils::read_pseudonames_files;
+
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
-struct CmdArgs {
+struct Args {
     /// Path to directory with DICOM files
     #[arg(short, long)]
     input_dir: PathBuf,
@@ -26,17 +28,17 @@ struct CmdArgs {
     #[arg(short, long)]
     prefix: Option<String>,
 
-    /// Pseudoname generation method
-    #[arg(short, long, default_value = "random-string")]
-    method: ArgPseudonameMethod,
+    /// Pseudonames as random 10-character alphanumeric string (default)
+    #[arg(long, conflicts_with_all = ["integer_count", "from_file"])]
+    random_string: bool,
 
-    /// Initial integer counter value, requires --method integer-count
-    #[arg(long, value_name = "INTEGER_START", default_value = "1")]
-    integer_start: u16,
+    /// Pseudonames as incrementing integers from starting VALUE, ex. --integer-count 5 -> <prefix>_5, <prefix>_6, ...
+    #[arg(long, value_name = "VALUE", conflicts_with = "from_file", default_missing_value = "1", num_args = 0..=1)]
+    integer_count: Option<u16>,
 
-    /// Path to .txt file containing pseudonames with optional prefixes; requires --method from-file
-    #[arg(long, value_name = "FILEPATH", required_if_eq("method", "from-file"), value_parser = pseudoname_file_exists)]
-    pseudonames_file: Option<PathBuf>,
+    /// Pseudonames from .txt file with optional prefixes
+    #[arg(long, conflicts_with = "integer_count", value_parser = pseudoname_file_exists)]
+    from_file: Option<PathBuf>,
 
     /// Anonymization profiles to apply
     #[arg(long, value_name = "PROFILE")]
@@ -51,46 +53,50 @@ struct CmdArgs {
     debug: bool,
 }
 
-#[derive(Debug, Clone, ValueEnum)]
-enum ArgPseudonameMethod {
-    /// Generate ten-character alphanumeric string
-    RandomString,
-    /// Increment <integer_start> from initial value, ex. <prefix>_1, <prefix>_2, ...
-    IntegerCount,
-    /// Use pseudonames from a .txt file
-    FromFile,
+fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
+    if let Some(path) = args.from_file.clone() {
+        let method = PseudonameMethod::FromMap {
+            map: read_pseudonames_files(path)?, // {
+                                                //     Ok(map) => map,
+                                                //     Err(err) => return Err(err),
+                                                // },
+        };
+        return Ok(method);
+    }
+
+    if let Some(start) = args.integer_count {
+        return Ok(PseudonameMethod::IntegerCount { current: start });
+    }
+
+    if !args.random_string {
+        log::warn!("no anonymization method specified, using RandomString");
+    }
+
+    Ok(PseudonameMethod::RandomString)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cmdargs = CmdArgs::parse();
+    let args = Args::parse();
 
-    dbg!(&cmdargs);
+    dbg!(&args);
 
     SimpleLogger::new()
-        .with_level(if cmdargs.debug {
+        .with_level(if args.debug {
             log::LevelFilter::Debug
         } else {
             log::LevelFilter::Info
         })
         .init()?;
 
-    let method = match cmdargs.method {
-        ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
-        ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
-            current: cmdargs.integer_start,
-        },
-        ArgPseudonameMethod::FromFile => PseudonameMethod::FromMap {
-            map: utils::read_pseudonames_files(cmdargs.pseudonames_file.unwrap())?,
-        },
-    };
+    let method = resolve_method(&args)?;
 
-    let prefix = cmdargs.prefix.unwrap_or(String::new());
-    let profiles = HashSet::from_iter(cmdargs.profile);
-    let uid_root = cmdargs.uid_root.unwrap();
+    let prefix = args.prefix.unwrap_or(String::new());
+    let profiles: HashSet<AnonymizationProfiles> = HashSet::from_iter(args.profile);
+    let uid_root = args.uid_root.unwrap();
 
     let mut anonymizer = DicomAnonymizer::new(prefix, method, profiles, uid_root);
 
-    anonymizer.run_anonymization(cmdargs.input_dir, cmdargs.output_dir)?;
+    anonymizer.run_anonymization(args.input_dir, args.output_dir)?;
 
     Ok(())
 }
@@ -101,19 +107,17 @@ mod tests {
 
     #[test]
     fn arg_from_file() -> Result<(), Box<dyn std::error::Error>> {
-        let cli_args: Vec<&str> = vec![
+        let args_input: Vec<&str> = vec![
             "--",
             "--input-dir",
             "./input",
             "-p",
             "TEST",
-            "-m",
-            "from-file",
-            "--pseudonames-file",
+            "--from-file",
             "./test-data/",
         ];
 
-        let cmdargs = match CmdArgs::try_parse_from(cli_args.iter()) {
+        let args_parse = match Args::try_parse_from(args_input.iter()) {
             Ok(res) => res,
             Err(err) => {
                 println!("{err}");
@@ -121,15 +125,7 @@ mod tests {
             }
         };
 
-        let method = match cmdargs.method {
-            ArgPseudonameMethod::RandomString => PseudonameMethod::RandomString,
-            ArgPseudonameMethod::IntegerCount => PseudonameMethod::IntegerCount {
-                current: cmdargs.integer_start,
-            },
-            ArgPseudonameMethod::FromFile => PseudonameMethod::FromMap {
-                map: utils::read_pseudonames_files(cmdargs.pseudonames_file.unwrap())?,
-            },
-        };
+        let method = resolve_method(&args_parse);
 
         println!("{method:#?}");
         Ok(())

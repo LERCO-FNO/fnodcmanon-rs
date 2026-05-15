@@ -178,7 +178,6 @@ impl AnonymizationProfiles {
     }
 }
 
-
 fn anonymize_basic_profile(pseudoname: &str, dataset: &mut InMemDicomObject) {
     dataset.put_str(tags::PATIENT_ID, VR::LO, pseudoname);
     dataset.put_str(tags::PATIENT_NAME, VR::PN, pseudoname);
