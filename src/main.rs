@@ -61,10 +61,7 @@ struct Args {
 fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
     if let Some(path) = args.from_file.clone() {
         let method = PseudonameMethod::FromMap {
-            map: read_pseudonames_files(path)?, // {
-                                                //     Ok(map) => map,
-                                                //     Err(err) => return Err(err),
-                                                // },
+            map: read_pseudonames_files(path)?,
         };
         return Ok(method);
     }

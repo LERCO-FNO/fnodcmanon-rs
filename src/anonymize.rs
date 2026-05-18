@@ -95,10 +95,14 @@ impl DicomAnonymizer {
             let mut dataset = open_file(&file)?;
 
             anonymize_basic_profile(&self.pseudoname, &mut dataset);
+            update_deidentification_method_element(&mut dataset, "DCM_113100".to_string());
 
             for profile in &self.additional_profiles {
                 profile.apply(&mut dataset);
-                update_deidentification_method_element(&mut dataset, profile);
+                update_deidentification_method_element(
+                    &mut dataset,
+                    profile.profile_as_string_code(),
+                );
             }
 
             // TODO: possibly improve error handling
@@ -157,14 +161,16 @@ impl DicomAnonymizer {
     }
 }
 
+// TODO: unify with the specification at https://dicom.nema.org/medical/dicom/current/output/chtml/part16/sect_CID_7050.html
+// more at https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_D.html#DCM_113100
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ValueEnum)]
 pub enum AnonymizationProfiles {
-    /// Patient related DICOM tags
+    /// Deidentify patient tag values (DCM_113108)
     Patient,
-    /// Institution related DICOM tags
-    Institution,
-    /// Device related DICOM tags
+    /// Deidentify device tag values (DCM_113109)
     Device,
+    /// Deidentify institution tag values (DCM_113112)
+    Institution,
 }
 
 impl AnonymizationProfiles {
@@ -177,12 +183,13 @@ impl AnonymizationProfiles {
     }
 
     fn profile_as_string_code(&self) -> String {
-        let method = match self {
-            Self::Patient => "DCM_01",
-            Self::Institution => "DCM_02",
-            Self::Device => "DCM_03",
-        };
-        method.to_string()
+        match self {
+            Self::Patient => "DCM_113108",
+            Self::Device => "DCM_113109",
+            Self::Institution => "DCM_113112",
+        }
+        .to_string()
+        // method.to_string()
     }
 }
 
@@ -240,10 +247,7 @@ fn generate_uid(root: &str) -> String {
     }
 }
 
-fn update_deidentification_method_element(
-    dataset: &mut InMemDicomObject,
-    profile: &AnonymizationProfiles,
-) {
+fn update_deidentification_method_element(dataset: &mut InMemDicomObject, profile_code: String) {
     let mut element_val = match dataset.element_opt(tags::DEIDENTIFICATION_METHOD) {
         Ok(Some(el)) => el.to_str().map(|s| s.to_string()).unwrap_or_default(),
         _ => String::new(),
@@ -253,7 +257,6 @@ fn update_deidentification_method_element(
         element_val.push('\\');
     }
 
-    let profile_code = profile.profile_as_string_code();
     log::debug!("adding deidentification code {0}", profile_code);
     element_val.push_str(&profile_code);
 
@@ -387,7 +390,7 @@ mod tests {
         let mut dataset = dicom_object::InMemDicomObject::new_empty();
 
         for profile in profiles {
-            update_deidentification_method_element(&mut dataset, &profile);
+            update_deidentification_method_element(&mut dataset, profile.profile_as_string_code());
         }
 
         if let Ok(el) = dataset.element(tags::DEIDENTIFICATION_METHOD) {
