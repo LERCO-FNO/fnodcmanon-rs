@@ -1,4 +1,5 @@
 use clap::Parser;
+use csv::Writer;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -6,6 +7,7 @@ use simple_logger::SimpleLogger;
 
 mod anonymize;
 mod error;
+mod tag_dump;
 mod utils;
 
 use anonymize::{AnonymizationProfiles, DicomAnonymizer, PseudonameMethod};
@@ -47,6 +49,9 @@ struct Args {
     /// Root UID to use for generating new UID values; must contain period separated digits
     #[arg(long, value_name = "ROOT", default_value = "2.25", value_parser = validate_uid)]
     uid_root: Option<String>,
+
+    #[arg(long)]
+    dump_tags: bool,
 
     /// Print at DEBUG logging level
     #[arg(long)]
@@ -96,7 +101,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut anonymizer = DicomAnonymizer::new(prefix, method, profiles, uid_root);
 
-    anonymizer.run_anonymization(args.input_dir, args.output_dir)?;
+    let study_tags = anonymizer.run_anonymization(args.input_dir, &args.output_dir)?;
+
+    if args.dump_tags {
+        let mut writer = Writer::from_path(args.output_dir.join("anonymized.csv"))?;
+        for study in study_tags {
+            writer.serialize(study)?;
+        }
+        writer.flush()?;
+    }
 
     Ok(())
 }

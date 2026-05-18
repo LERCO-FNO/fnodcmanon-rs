@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::tag_dump::StudyTags;
 use crate::utils::{create_study_dir, find_dicom_dirs, get_dicom_files};
 
 #[derive(Debug, Default)]
@@ -130,10 +131,11 @@ impl DicomAnonymizer {
     pub fn run_anonymization(
         &mut self,
         input_dir: PathBuf,
-        output_dir: PathBuf,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        output_dir: &Path,
+    ) -> Result<Vec<StudyTags>, Box<dyn std::error::Error>> {
         let dicom_dirs = find_dicom_dirs(&input_dir)?;
 
+        let mut study_tags: Vec<StudyTags> = Vec::new();
         for dir in dicom_dirs {
             let dicom_files = match get_dicom_files(&dir) {
                 Some(files) => files,
@@ -142,10 +144,16 @@ impl DicomAnonymizer {
 
             self.get_basic_tags(dicom_files.first().unwrap())?;
             self.set_pseudoname();
-            self.anonymize_study(dicom_files, &output_dir)?;
+            self.anonymize_study(dicom_files, output_dir)?;
+
+            study_tags.push(StudyTags::new(
+                self.old_id.clone(),
+                self.pseudoname.clone(),
+                self.study_uid.clone(),
+            ));
         }
 
-        Ok(())
+        Ok(study_tags)
     }
 }
 
