@@ -161,5 +161,9 @@ pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
         return Err(UIDRootError::ExtraPeriod(uid));
     }
 
+    if uid.contains(".0") {
+        return Err(UIDRootError::LeadingZero(uid));
+    }
+
     Ok(uid)
 }

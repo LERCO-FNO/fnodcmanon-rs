@@ -4,6 +4,7 @@ use std::fmt;
 pub enum UIDRootError {
     InvalidCharacter(String),
     ExtraPeriod(String),
+    LeadingZero(String),
 }
 
 impl std::error::Error for UIDRootError {}
@@ -17,6 +18,7 @@ impl fmt::Display for UIDRootError {
                 uid
             ),
             UIDRootError::ExtraPeriod(uid) => write!(f, "extra period in UID root '{}'", uid),
+            UIDRootError::LeadingZero(uid) => write!(f, "leading zero in UID root `{}`", uid),
         }
     }
 }
