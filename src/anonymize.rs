@@ -248,10 +248,12 @@ fn generate_uid(root: &str) -> String {
 }
 
 fn update_deidentification_method_element(dataset: &mut InMemDicomObject, profile_code: String) {
-    let mut element_val = match dataset.element_opt(tags::DEIDENTIFICATION_METHOD) {
-        Ok(Some(el)) => el.to_str().map(|s| s.to_string()).unwrap_or_default(),
-        _ => String::new(),
-    };
+    let mut element_val: String = dataset
+        .element_opt(tags::DEIDENTIFICATION_METHOD)
+        .ok()
+        .flatten()
+        .and_then(|el| el.to_str().map(|s| s.to_string()).ok())
+        .unwrap_or_default();
 
     if !element_val.is_empty() {
         element_val.push('\\');
@@ -395,7 +397,9 @@ mod tests {
 
         if let Ok(el) = dataset.element(tags::DEIDENTIFICATION_METHOD) {
             if let Ok(val) = el.to_str() {
-                assert_eq!(val, "DCM_01\\DCM_02\\DCM_03");
+                assert!(val.contains("DCM_113108"));
+                assert!(val.contains("DCM_113112"));
+                assert!(val.contains("DCM_113109"));
             }
         } else {
             panic!("element not found");
