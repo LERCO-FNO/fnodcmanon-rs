@@ -206,8 +206,7 @@ Histological Diagnoses Code Sequence;(0008,1304);N;Y;X;-;-;-;-;-;-;-;C;-;
 HL7 Document Effective Time;(0040,E004);N;N;X;-;-;-;-;-;K;C;-;-;
 Human Performer's Name;(0040,4037);N;N;X;-;-;-;-;-;-;-;-;-;
 Human Performer's Organization;(0040,4036);N;N;X;-;-;-;-;-;-;-;-;-;
-"Icon Image Sequence
-(see Note 11)";(0088,0200);N;Y;X;-;-;-;-;-;-;-;-;-;
+Icon Image Sequence;(0088,0200);N;Y;X;-;-;-;-;-;-;-;-;-;
 Identifying Comments;(0008,4000);Y;N;X;-;-;-;-;-;-;-;C;-;
 Image Comments;(0020,4000);N;Y;X;-;-;-;-;-;-;-;C;-;
 Image Presentation Comments;(0028,4000);Y;N;X;-;-;-;-;-;-;-;-;-;
