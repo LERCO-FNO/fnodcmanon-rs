@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
+use rand::Rng;
+use rand::distr::Alphanumeric;
+
 use crate::error::UIDRootError;
 
 pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
@@ -166,4 +169,9 @@ pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
     }
 
     Ok(uid)
+}
+
+pub fn generate_random_string() -> String {
+    let mut rng = rand::rng();
+    (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
 }
