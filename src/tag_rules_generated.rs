@@ -996,6 +996,214 @@ pub static TAG_RULES: &[(Tag, TagRule)] = &[
         },
     ),
     (
+        Tag(0x5000, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5002, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5004, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5006, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5008, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x500A, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x500C, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x500E, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5010, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5012, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5014, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5016, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x5018, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x501A, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x501C, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
+        Tag(0x501E, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[
+                (DeidentifyProfile::RetainRetired, DeidentifyAction::Keep),
+                (
+                    DeidentifyProfile::BasicConfidentiality,
+                    DeidentifyAction::Remove,
+                ),
+            ],
+        },
+    ),
+    (
         Tag(0x0008, 0x0025),
         TagRule {
             vr: VR::DA,
@@ -3636,6 +3844,166 @@ pub static TAG_RULES: &[(Tag, TagRule)] = &[
                     DeidentifyAction::Remove,
                 ),
             ],
+        },
+    ),
+    (
+        Tag(0x6000, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6002, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6004, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6006, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6008, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x600A, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x600C, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x600E, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6010, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6012, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6014, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6016, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x6018, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x601A, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x601C, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
+        },
+    ),
+    (
+        Tag(0x601E, 0x3000),
+        TagRule {
+            vr: VR::OW,
+            actions: &[(
+                DeidentifyProfile::BasicConfidentiality,
+                DeidentifyAction::Remove,
+            )],
         },
     ),
     (

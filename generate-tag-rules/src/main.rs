@@ -108,14 +108,15 @@ fn main() {
             name = entry.alias
         );
 
-        let Some(vr) = entry.vr.exact() else {
-            eprintln!(
-                "error fetching exact VR for tag {tag} {name}",
-                name = row.name
-            );
-            skipped_tags.push((tag.to_string(), row.name.clone(), "no exact VR".to_string()));
-            continue;
-        };
+        let vr = entry.vr.relaxed();
+        // else {
+        //     eprintln!(
+        //         "error fetching exact VR for tag {tag} {name}",
+        //         name = row.name
+        //     );
+        //     skipped_tags.push((tag.to_string(), row.name.clone(), "no exact VR".to_string()));
+        //     continue;
+        // };
 
         let mut pairs: Vec<String> = Vec::new();
         for (profile, code) in [
@@ -149,12 +150,17 @@ fn main() {
             }
         }
 
-        out += &format!(
-            "(Tag(0x{group:04X},0x{elem:04X}), TagRule {{vr: VR::{vr}, actions: &[{pairs}]}}),",
-            group = tag.0,
-            elem = tag.1,
-            pairs = pairs.join(", ")
-        );
+        match (tag.0, tag.1) {
+            (0x6000, 0x3000) | (0x5000, 0x3000) => {
+                for index in 0..16 {
+                    out += &format_rule(Tag(tag.0 + index * 2, tag.1), vr, &pairs);
+                }
+            }
+            _ => {
+                out += &format_rule(tag, vr, &pairs);
+            }
+        }
+
         generated_tags_count += 1;
     }
     out += "];\n";
@@ -176,6 +182,15 @@ fn main() {
         .arg("src/tag_rules_generated.rs")
         .status()
         .unwrap_or_else(|e| panic!("error formatting src/tag_rules_generated.rs: {e}"));
+}
+
+fn format_rule(tag: Tag, vr: dicom_core::VR, pairs: &[String]) -> String {
+    format!(
+        "(Tag(0x{group:04X},0x{elem:04X}), TagRule {{vr: VR::{vr}, actions: &[{pairs}]}}),",
+        group = tag.0,
+        elem = tag.1,
+        pairs = pairs.join(", ")
+    )
 }
 
 fn code_to_action(profile: &str, mut code: &str) -> Result<Option<&'static str>, String> {
