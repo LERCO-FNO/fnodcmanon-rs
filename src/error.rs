@@ -7,13 +7,32 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
+    #[snafu(display("{message}"))]
+    ScanDirectory {
+        message: String,
+    },
     #[snafu(display("Failed reading deidentification map from file `{}`", file.display()))]
     FromFile {
         source: std::io::Error,
         file: PathBuf,
     },
+    DeidentifyError {
+        source: DeidentifyError,
+    },
+    #[snafu(display("Failed writing deidentified values"))]
+    WriteDeidentify {
+        source: csv::Error,
+    },
 }
 
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub enum DeidentifyError {
+    ReadDicomFile { source: ReadError },
+    WriteDicomFile,
+    AccessElement { source: AccessError },
+    ConvertValue { source: ConvertValueError },
+}
 #[derive(Debug)]
 pub enum UIDRootError {
     InvalidCharacter(String),

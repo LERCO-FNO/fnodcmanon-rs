@@ -1,4 +1,4 @@
-use csv::Writer;
+use csv::WriterBuilder;
 use serde::Serialize;
 use std::path::Path;
 
@@ -27,7 +27,7 @@ impl StudyTags {
 }
 
 pub fn write_tags_to_file<P: AsRef<Path>>(path: P, tags: Vec<StudyTags>) -> Result<(), csv::Error> {
-    let mut writer = Writer::from_path(path)?;
+    let mut writer = WriterBuilder::new().delimiter(b';').from_path(path)?;
     for study in tags {
         writer.serialize(study)?;
     }

@@ -3,9 +3,7 @@ use snafu::ResultExt;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-// use simple_logger::SimpleLogger;
-
-use tracing::{error, info, warn};
+use tracing::error;
 use tracing_subscriber::fmt::time::ChronoLocal;
 
 mod anonymize;
@@ -22,7 +20,7 @@ use profiles::DeidentifyProfile;
 use tag_dump::write_tags_to_file;
 use utils::{pseudoname_file_exists, read_pseudonames_files, validate_uid};
 
-use crate::error::Error;
+use crate::error::{Error, WriteDeidentifySnafu};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -113,7 +111,7 @@ fn initialize_profiles(optional_profiles: Vec<DeidentifyProfile>) -> HashSet<Dei
         .collect()
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Error> {
     let Args {
         input_dir,
         output_dir,
@@ -145,7 +143,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .run_anonymization(input_dir, &output_dir)?;
 
     if write_tags {
-        write_tags_to_file(output_dir.join("deidentified.csv"), study_tags)?;
+        write_tags_to_file(output_dir.join("deidentified.csv"), study_tags)
+            .context(WriteDeidentifySnafu)?;
     }
 
     Ok(())

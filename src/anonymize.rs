@@ -1,6 +1,7 @@
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, open_file};
+use snafu::ResultExt;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
@@ -8,9 +9,18 @@ use std::{
 };
 use tracing::{debug, warn};
 
-use crate::tag_rules_generated::TAG_RULES;
-use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files};
-use crate::{error::AnonymizerError, tag_dump::StudyTags};
+use crate::{
+    error::{AccessElementSnafu, DeidentifyError},
+    utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files},
+};
+use crate::{
+    error::{AnonymizerError, ReadDicomFileSnafu},
+    tag_dump::StudyTags,
+};
+use crate::{
+    error::{ConvertValueSnafu, Error},
+    tag_rules_generated::TAG_RULES,
+};
 use crate::{
     profiles::{DeidentifyProfile, TagRule},
     uid::UidMap,
@@ -82,14 +92,26 @@ impl DicomAnonymizer {
         };
     }
 
-    fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), AnonymizerError> {
-        let dicom_obj = open_file(filepath)?;
+    fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), DeidentifyError> {
+        let dicom_obj = open_file(filepath).context(ReadDicomFileSnafu)?;
 
-        self.old_id = dicom_obj.element(tags::PATIENT_ID)?.to_str()?.to_string();
-        self.old_name = dicom_obj.element(tags::PATIENT_NAME)?.to_str()?.to_string();
+        self.old_id = dicom_obj
+            .element(tags::PATIENT_ID)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
+            .to_string();
+        self.old_name = dicom_obj
+            .element(tags::PATIENT_NAME)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
+            .to_string();
         self.old_study_uid = dicom_obj
-            .element(tags::STUDY_INSTANCE_UID)?
-            .to_str()?
+            .element(tags::STUDY_INSTANCE_UID)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
             .to_string();
 
         Ok(())
@@ -144,7 +166,7 @@ impl DicomAnonymizer {
         &mut self,
         input_dir: PathBuf,
         output_dir: &Path,
-    ) -> Result<Vec<StudyTags>, AnonymizerError> {
+    ) -> Result<Vec<StudyTags>, Error> {
         let dicom_dirs = find_dicom_dirs(&input_dir)?;
 
         let mut study_tags: Vec<StudyTags> = Vec::new();
@@ -154,7 +176,9 @@ impl DicomAnonymizer {
                 None => continue,
             };
 
-            self.get_basic_tags(dicom_files.first().unwrap())?;
+            // unwrap() is fine, empty Vec<> already checked in get_dicom_files()
+            self.get_basic_tags(dicom_files.first().unwrap())
+                .context(DeidentifyErrorSnafu)?;
             self.set_pseudoname();
             self.anonymize_study(dicom_files, output_dir)?;
 

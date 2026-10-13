@@ -4,46 +4,72 @@ use std::{fs, io};
 
 use rand::Rng;
 use rand::distr::Alphanumeric;
+use snafu::ResultExt;
 use tracing::{error, info, warn};
 
 use crate::error::UIDRootError;
+use crate::error::{Error, ScanDirectorySnafu};
 
-pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
+pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, Error> {
     if !input_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Input path does not exist {0:?}", input_path.display()),
-        ));
+        return ScanDirectorySnafu {
+            message: format!("Input path does not exist at `{}`", input_path.display()),
+        }
+        .fail();
     }
 
     if !input_path.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotADirectory,
-            format!(
-                "Error: Input path is not directory {0:?}",
-                input_path.display()
-            ),
-        ));
-    }
-
-    match get_dirs(input_path) {
-        Ok(dirs) => {
-            if dirs.is_empty() {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("No dicom directories found at {:?}", input_path),
-                ));
-            }
-
-            info!(
-                "Found {0} directories with dicom files in {1}",
-                dirs.len(),
-                input_path.display()
-            );
-            Ok(dirs)
+        return ScanDirectorySnafu {
+            message: format!("Input path is not directory `{}`", input_path.display()),
         }
-        Err(e) => Err(e),
+        .fail();
     }
+
+    let dirs = get_dirs(input_path).map_err(|e| {
+        ScanDirectorySnafu {
+            message: format!(
+                "Failed to scan `{}` for DICOM directories: {e}",
+                input_path.display(),
+            ),
+        }
+        .build()
+    })?;
+
+    if dirs.is_empty() {
+        return ScanDirectorySnafu {
+            message: format!("No dicom directories at `{}`", input_path.display()),
+        }
+        .fail();
+    }
+
+    info!(
+        "Found {} directories with DICOM files in `{}`",
+        dirs.len(),
+        input_path.display()
+    );
+    Ok(dirs)
+
+    // {
+    //     Ok(dirs) => {
+    //         if dirs.is_empty() {
+    //             ScanDirectorySnafu {
+    //                 message: format!("No dicom directories at `{}`", input_path.display()),
+    //             }
+    //             .build();
+    //         }
+    //
+    //         info!(
+    //             "Found {0} directories with dicom files in {1}",
+    //             dirs.len(),
+    //             input_path.display()
+    //         );
+    //         Ok(dirs)
+    //     }
+    //     Err(e) => Err(ScanDirectorySnafu {
+    //         message: format!("{e}"),
+    //     }
+    //     .build()),
+    // }
 }
 
 fn get_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
@@ -52,18 +78,24 @@ fn get_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
 
     for entry in fs::read_dir(input_path)? {
         let entry = match entry {
-            Ok(e) => e.path(),
-            Err(_) => continue,
+            Ok(e) => e,
+            Err(e) => {
+                warn!(
+                    "Skipping unreadable entry in `{}`: {e}",
+                    input_path.display()
+                );
+                continue;
+            }
         };
 
-        if entry.is_symlink() {
-            continue;
-        }
+        let Ok(ft) = entry.file_type() else { continue };
 
-        if entry.is_file() {
+        if ft.is_symlink() {
+            continue;
+        } else if ft.is_file() {
             has_direct_file = true;
-        } else if entry.is_dir() {
-            dicom_dirs.extend(get_dirs(&entry)?);
+        } else {
+            dicom_dirs.extend(get_dirs(&entry.path())?);
         }
     }
 
