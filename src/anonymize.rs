@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::LazyLock,
 };
+use tracing::{debug, warn};
 
 use crate::tag_rules_generated::TAG_RULES;
 use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files};
@@ -16,7 +17,7 @@ use crate::{
 };
 
 static TAG_RULES_MAP: LazyLock<HashMap<Tag, TagRule>> = LazyLock::new(|| {
-    log::debug!(
+    debug!(
         "initializing TAG_RULES_MAP with {} entries",
         TAG_RULES.len()
     );
@@ -125,16 +126,15 @@ impl DicomAnonymizer {
             let filepath = study_dir.join(file.file_name().unwrap());
 
             if filepath.exists() {
-                log::warn!("file {} exists, overwriting", filepath.display());
+                warn!("file {} exists, overwriting", filepath.display());
             }
 
             dataset.write_to_file(filepath)?;
         }
 
-        log::debug!(
+        debug!(
             "old id {0} -> new id/name {1}",
-            self.old_id,
-            self.pseudoname
+            self.old_id, self.pseudoname
         );
 
         Ok(())

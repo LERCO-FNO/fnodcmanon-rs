@@ -2,7 +2,10 @@ use clap::Parser;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use simple_logger::SimpleLogger;
+// use simple_logger::SimpleLogger;
+
+use tracing::{error, info, warn};
+use tracing_subscriber::fmt::time::ChronoLocal;
 
 mod anonymize;
 mod error;
@@ -64,7 +67,7 @@ struct Args {
 
     /// Print at DEBUG logging level.
     #[arg(long)]
-    debug: bool,
+    verbose: bool,
 }
 
 //TODO: add removing tags matching 'Unknown Tag' in name
@@ -89,7 +92,7 @@ fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
     }
 
     if !args.random_string {
-        log::warn!("No anonymization method specified, using RandomString");
+        warn!("No anonymization method specified, using RandomString");
     }
 
     Ok(PseudonameMethod::RandomString)
@@ -98,15 +101,25 @@ fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    SimpleLogger::new()
-        .with_level(if args.debug {
-            log::LevelFilter::Debug
-        } else {
-            log::LevelFilter::Info
-        })
-        .init()?;
+    // SimpleLogger::new()
+    //     .with_level(if args.debug {
+    //         log::LevelFilter::Debug
+    //     } else {
+    //         log::LevelFilter::Info
+    //     })
+    //     .init()?;
 
-    let method = resolve_method(&args)?;
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_timer(ChronoLocal::new("%Y-%m-%d %H:%M:%S".to_string()))
+            .with_max_level(if verbose {
+                tracing::Level::DEBUG
+            } else {
+                tracing::Level::INFO
+            })
+            .finish(),
+    )
+    .unwrap_or_else(|e| error!("{}", snafu::Report::from_error(e)));
     let profiles: HashSet<DeidentifyProfile> = initialize_profiles(args.profile);
 
     let study_tags = DicomAnonymizer::new(args.prefix, method, profiles, args.uid_root)

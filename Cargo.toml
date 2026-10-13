@@ -20,3 +20,6 @@ simple_logger = { version = "5.1.0", default-features = false, features = [
   "colors",
 ] }
 uuid = { version = "1.21.0", features = ["v7"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["chrono", "fmt"] }
+snafu = "0.9.2"

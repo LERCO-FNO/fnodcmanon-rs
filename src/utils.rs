@@ -4,6 +4,7 @@ use std::{fs, io};
 
 use rand::Rng;
 use rand::distr::Alphanumeric;
+use tracing::{error, info, warn};
 
 use crate::error::UIDRootError;
 
@@ -34,7 +35,7 @@ pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
                 ));
             }
 
-            log::info!(
+            info!(
                 "Found {0} directories with dicom files in {1}",
                 dirs.len(),
                 input_path.display()
@@ -118,7 +119,7 @@ pub fn get_dicom_files(dir: &Path) -> Option<Vec<PathBuf>> {
     let entries: fs::ReadDir = match fs::read_dir(dir) {
         Ok(r) => r,
         Err(e) => {
-            log::error!("{e}");
+            error!("{e}");
             return None;
         }
     };
@@ -142,13 +143,13 @@ pub fn create_study_dir(output_parent_path: &Path, study_uid: &str) -> Result<Pa
     let study_dir = output_parent_path.join(PathBuf::from(study_uid));
 
     if study_dir.exists() {
-        log::warn!("directory `{}` exists, overwriting", study_dir.display());
+        warn!("directory `{}` exists, overwriting", study_dir.display());
         return Ok(study_dir);
     }
 
     fs::create_dir_all(&study_dir)?;
 
-    log::info!("created directory `{}`", study_dir.display());
+    info!("created directory `{}`", study_dir.display());
 
     Ok(study_dir)
 }

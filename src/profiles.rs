@@ -5,6 +5,7 @@ use dicom_core::value::Value;
 use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
+use tracing::{debug, error, warn};
 
 use crate::error::AnonymizerError;
 use crate::uid::UidMap;
@@ -124,7 +125,7 @@ impl TagRule {
                             if let Value::Sequence(seq) = value {
                                 for item in seq.items_mut() {
                                     if let Err(e) = walk_item(item, uid_map) {
-                                        log::error!("failed to walk sequence: {e}");
+                                        error!("failed to walk sequence: {e}");
                                     }
                                 }
                             }
@@ -136,7 +137,7 @@ impl TagRule {
                     // TODO: verify!!
                     (VR::SQ, _) => Ok(()),
                     (_, _) => {
-                        log::debug!(
+                        debug!(
                             "No implemented behaviour for tag {tag}, vr {vr}, action {action:?}",
                             vr = self.vr
                         );
@@ -147,7 +148,7 @@ impl TagRule {
                 }
             }
             (DeidentifyAction::Clean, _) => {
-                log::warn!("Rule defined, but DeidentifyAction::Clean not implemented yet");
+                warn!("Rule defined, but DeidentifyAction::Clean not implemented yet");
                 Ok(())
             }
             (DeidentifyAction::UIDReplace, VR::UI) => {
@@ -157,7 +158,7 @@ impl TagRule {
                 Ok(())
             }
             (DeidentifyAction::UIDReplace, _) => {
-                log::warn!(
+                warn!(
                     "non UI VR, tag {tag}, vr {vr}, action {action:?}",
                     vr = self.vr
                 );
@@ -188,7 +189,7 @@ fn walk_item(item: &mut InMemDicomObject, uid_map: &mut UidMap) -> Result<(), An
         if let Value::Sequence(seq) = value {
             for subitem in seq.items_mut() {
                 if let Err(e) = walk_item(subitem, uid_map) {
-                    log::error!("failed to walk subitem: {e}");
+                    error!("failed to walk subitem: {e}");
                 }
             }
         }

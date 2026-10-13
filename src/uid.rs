@@ -49,7 +49,6 @@ mod tests {
     fn test_uid() {
         let root = "1.2.3";
         let uid = generate_uid(root);
-        println!("{uid}");
         assert!(uid.starts_with(root));
     }
 }
