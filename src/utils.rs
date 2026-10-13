@@ -93,7 +93,7 @@ pub fn pseudoname_file_exists(path: &str) -> Result<PathBuf, io::Error> {
     Ok(path)
 }
 
-pub fn read_pseudonames_files(path: PathBuf) -> Result<HashMap<String, String>, io::Error> {
+pub fn read_pseudonames_files(path: &Path) -> Result<HashMap<String, String>, io::Error> {
     let content = std::fs::read_to_string(path)?;
 
     let mut pseudonames_map: HashMap<String, String> = HashMap::new();

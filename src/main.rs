@@ -1,4 +1,5 @@
 use clap::Parser;
+use snafu::ResultExt;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -16,9 +17,12 @@ mod uid;
 mod utils;
 
 use anonymize::{DicomAnonymizer, PseudonameMethod};
+use error::FromFileSnafu;
 use profiles::DeidentifyProfile;
 use tag_dump::write_tags;
 use utils::{pseudoname_file_exists, read_pseudonames_files, validate_uid};
+
+use crate::error::Error;
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -79,26 +83,40 @@ fn initialize_profiles(optional_profiles: Vec<DeidentifyProfile>) -> HashSet<Dei
         .collect()
 }
 
-fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
-    if let Some(path) = args.from_file.clone() {
-        let method = PseudonameMethod::FromMap {
-            map: read_pseudonames_files(path)?,
-        };
-        return Ok(method);
-    }
+fn resolve_method(
+    random_string: bool,
+    integer_count: Option<u16>,
+    from_file: Option<PathBuf>,
+) -> Result<PseudonameMethod, Error> {
+    let method = match (random_string, integer_count, from_file) {
+        (true, _, _) => PseudonameMethod::RandomString,
+        (_, Some(start), _) => PseudonameMethod::IntegerCount { current: start },
+        (_, _, Some(file)) => PseudonameMethod::FromMap {
+            map: read_pseudonames_files(&file).context(FromFileSnafu { file })?,
+        },
+        (_, _, _) => std::process::exit(-2),
+    };
 
-    if let Some(start) = args.integer_count {
-        return Ok(PseudonameMethod::IntegerCount { current: start });
-    }
+    Ok(method)
 
-    if !args.random_string {
-        warn!("No anonymization method specified, using RandomString");
-    }
-
-    Ok(PseudonameMethod::RandomString)
+    // if let Some(path) = args.from_file.clone() {
+    //     let method = PseudonameMethod::FromMap {
+    //         map: read_pseudonames_files(path)?,
+    //     };
+    //     return Ok(method);
+    // }
+    //
+    // if let Some(start) = args.integer_count {
+    //     return Ok(PseudonameMethod::IntegerCount { current: start });
+    // }
+    //
+    // if !args.random_string {
+    //     warn!("No anonymization method specified, using RandomString");
+    // }
+    //
+    // Ok(PseudonameMethod::RandomString)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // SimpleLogger::new()
@@ -120,6 +138,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .finish(),
     )
     .unwrap_or_else(|e| error!("{}", snafu::Report::from_error(e)));
+
+    let method = resolve_method(random_string, integer_count, from_file)?;
     let profiles: HashSet<DeidentifyProfile> = initialize_profiles(args.profile);
 
     let study_tags = DicomAnonymizer::new(args.prefix, method, profiles, args.uid_root)

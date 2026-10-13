@@ -1,7 +1,18 @@
-use std::{error, fmt, io};
+use std::{error, fmt, io, path::PathBuf};
 
 use dicom_core::value::ConvertValueError;
 use dicom_object::{AccessError, ReadError, WriteError};
+use snafu::Snafu;
+
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub enum Error {
+    #[snafu(display("Failed reading deidentification map from file `{}`", file.display()))]
+    FromFile {
+        source: std::io::Error,
+        file: PathBuf,
+    },
+}
 
 #[derive(Debug)]
 pub enum UIDRootError {
