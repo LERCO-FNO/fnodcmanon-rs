@@ -68,10 +68,9 @@ struct Args {
 
 #[derive(Debug, ClapArgs)]
 #[group(multiple = false)]
-#[command(next_help_heading = "Pseudoname methods (choose one)")]
 pub struct PseudonameMethodArg {
     /// Pseudonames as random 10-character alphanumeric string (default).
-    #[arg(short, long)]
+    #[arg(short, long, help_heading = "Pseudoname method")]
     random_string: bool,
 
     /// Pseudonames as incrementing unsigned integers from starting <VALUE>, ex. --integer-count 5 -> <prefix>_5, <prefix>_6, ...
@@ -80,12 +79,13 @@ pub struct PseudonameMethodArg {
         long,
         value_name = "VALUE",
         default_missing_value = "1",
-        num_args = 0..=1
+        num_args = 0..=1,
+        help_heading = "Pseudoname method"
     )]
     integer_count: Option<u16>,
 
     /// Pseudonames from .txt file with optional prefixes.
-    #[arg(short, long, value_parser = pseudoname_file_exists)]
+    #[arg(short, long, value_parser = pseudoname_file_exists, help_heading = "Pseudoname method")]
     from_file: Option<PathBuf>,
 }
 
