@@ -26,7 +26,7 @@ impl StudyTags {
     }
 }
 
-pub fn write_tags<P: AsRef<Path>>(path: P, tags: Vec<StudyTags>) -> Result<(), csv::Error> {
+pub fn write_tags_to_file<P: AsRef<Path>>(path: P, tags: Vec<StudyTags>) -> Result<(), csv::Error> {
     let mut writer = Writer::from_path(path)?;
     for study in tags {
         writer.serialize(study)?;
