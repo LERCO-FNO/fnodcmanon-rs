@@ -158,7 +158,7 @@ pub fn get_dicom_files(dir: &Path) -> Option<Vec<PathBuf>> {
         .map(|x| x.path())
         .filter(|x| {
             x.is_file()
-                && x.extension().is_none()
+//                && x.extension().is_none()
                 && x.file_name().and_then(|x| x.to_str()) != Some("DICOMDIR")
         })
         .collect();
