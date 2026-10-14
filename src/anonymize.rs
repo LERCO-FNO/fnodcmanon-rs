@@ -122,8 +122,18 @@ impl DicomAnonymizer {
         let study_dir =
             create_study_dir(output_dir, &self.new_study_uid).context(CreateStudyDirSnafu)?;
 
-        for file in dicom_files {
-            let mut dataset = open_file(&file).context(ReadDicomFileSnafu)?;
+        for file_path in dicom_files {
+            let mut dataset = match open_file(&file_path) {
+                Ok(ds) => ds,
+                Err(err) => {
+                    error!("{err}"); // report wrong file type and skip to next file path
+                    continue;
+                    // Reporting instead of early quitting for the rare possibility of some random
+                    // file within study directory.
+                    // Filtering would require reading the file as DICOM files don't have to have
+                    // ".dcm" extension.
+                }
+            };
 
             // collect dataset's tags; .tags() is immutable borrow over iterable; for-loop below modifies dataset
             let tags: Vec<Tag> = dataset.tags().collect();
