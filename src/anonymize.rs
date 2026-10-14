@@ -134,12 +134,10 @@ impl DicomAnonymizer {
             let tags: Vec<Tag> = dataset.tags().collect();
 
             for tag in tags {
-                let Some(rule) = TAG_RULES_MAP.get(&tag) else {
-                    continue;
-                };
-
-                let action = rule.resolve_action(&self.active_profiles);
-                rule.apply_action(&mut dataset, tag, action, &mut uid_map)?;
+                if let Some(rule) = TAG_RULES_MAP.get(&tag) {
+                    let action = rule.resolve_action(&self.active_profiles);
+                    rule.apply_action(&mut dataset, tag, action, &mut uid_map)?;
+                }
             }
 
             update_patient_name_id(&mut dataset, &self.pseudoname);
@@ -148,7 +146,7 @@ impl DicomAnonymizer {
             let filepath = study_dir.join(file.file_name().unwrap());
 
             if filepath.exists() {
-                warn!("file {} exists, overwriting", filepath.display());
+                warn!("file `{}` exists, overwriting", filepath.display());
             }
 
             dataset.write_to_file(filepath)?;
