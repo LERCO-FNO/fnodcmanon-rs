@@ -87,6 +87,11 @@ impl DicomAnonymizer {
     }
 
     fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), DeidentifyError> {
+        // BUG: This fails if the first file is non DICOM file or directory with expected files has
+        // non-DICOM files.
+        // Solution: report as error!() and continue to next directory?
+        // Try to think of some way of filtering non-DICOM files in get_dicom_files and this avoid
+        // all together?
         let dicom_obj = open_file(filepath).context(ReadDicomFileSnafu)?;
 
         self.old_id = dicom_obj
