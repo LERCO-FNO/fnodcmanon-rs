@@ -18,7 +18,8 @@ use anonymize::{DicomAnonymizer, PseudonameMethod};
 use error::FromFileSnafu;
 use profiles::DeidentifyProfile;
 use tag_dump::write_tags_to_file;
-use utils::{pseudoname_file_exists, read_pseudonames_files, validate_uid};
+use uid::validate_uid;
+use utils::{pseudoname_file_exists, read_pseudonames_files};
 
 use crate::error::{Error, WriteCsvDeidentifySnafu};
 

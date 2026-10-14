@@ -38,6 +38,23 @@ pub fn generate_uid(root: &str) -> String {
     }
 }
 
+pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
+    let uid = uid.to_string();
+
+    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
+        return InvalidCharacterSnafu { uid }.fail();
+    }
+
+    if uid.contains("..") {
+        return ExtraPeriodSnafu { uid }.fail();
+    }
+
+    if uid.contains(".0") {
+        return LeadingZeroSnafu { uid }.fail();
+    }
+
+    Ok(uid)
+}
 
 #[derive(Debug, Snafu)]
 // #[snafu(visibility(pub(crate)))]

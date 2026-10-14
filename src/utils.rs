@@ -184,24 +184,6 @@ pub fn create_study_dir(output_parent_path: &Path, study_uid: &str) -> Result<Pa
     Ok(study_dir)
 }
 
-pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
-    let uid = uid.to_string();
-
-    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
-        return Err(UIDRootError::InvalidCharacter(uid));
-    }
-
-    if uid.contains("..") {
-        return Err(UIDRootError::ExtraPeriod(uid));
-    }
-
-    if uid.contains(".0") {
-        return Err(UIDRootError::LeadingZero(uid));
-    }
-
-    Ok(uid)
-}
-
 pub fn generate_random_string() -> String {
     let mut rng = rand::rng();
     (0..10).map(|_| rng.sample(Alphanumeric) as char).collect()
