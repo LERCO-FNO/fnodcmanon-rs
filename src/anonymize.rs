@@ -138,14 +138,22 @@ impl DicomAnonymizer {
             update_patient_name_id(&mut dataset, &self.pseudoname);
             update_deidentification_method_element(&mut dataset, &self.active_profiles);
 
-            let filepath = study_dir.join(file.file_name().unwrap());
+            let file_uid = dataset
+                .element(tags::SOP_INSTANCE_UID)
+                .context(AccessElementSnafu)?
+                .to_str()
+                .context(ConvertValueSnafu)?
+                .to_string();
+            let new_filepath = study_dir.join(format!("{file_uid}.dcm"));
 
-            if filepath.exists() {
-                warn!("file `{}` exists, overwriting", filepath.display());
-            }
+            // uuid v7 is very unique, VERY unlikely (pretty much impossible lol) to generate same
+            // uuid
+            // if filepath.exists() {
+            //     warn!("file `{}` exists, overwriting", filepath.display());
+            // }
 
             dataset
-                .write_to_file(filepath)
+                .write_to_file(new_filepath)
                 .context(WriteDicomFileSnafu)?;
         }
 
