@@ -5,11 +5,11 @@ use dicom_core::value::Value;
 use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
+use snafu::ResultExt;
 use tracing::{debug, error, warn};
 
-use crate::error::AnonymizerError;
+use crate::error::{AccessElementSnafu, ConvertValueSnafu, DeidentifyError};
 use crate::uid::UidMap;
-// use crate::utils::generate_random_string;
 
 // add tag profile groups here, definitions and action to take here
 
@@ -101,7 +101,7 @@ impl TagRule {
         tag: Tag,
         action: DeidentifyAction,
         uid_map: &mut UidMap,
-    ) -> Result<(), AnonymizerError> {
+    ) -> Result<(), DeidentifyError> {
         match (action, self.vr) {
             (DeidentifyAction::Keep, _) => Ok(()),
             (DeidentifyAction::Remove, _) => {
@@ -152,7 +152,11 @@ impl TagRule {
                 Ok(())
             }
             (DeidentifyAction::UIDReplace, VR::UI) => {
-                let old_uid = ds.element(tag)?.to_str()?;
+                let old_uid = ds
+                    .element(tag)
+                    .context(AccessElementSnafu)?
+                    .to_str()
+                    .context(ConvertValueSnafu)?;
                 let new_uid = uid_map.get_or_insert(&old_uid);
                 ds.put_str(tag, self.vr, new_uid);
                 Ok(())
@@ -168,14 +172,18 @@ impl TagRule {
     }
 }
 
-fn walk_item(item: &mut InMemDicomObject, uid_map: &mut UidMap) -> Result<(), AnonymizerError> {
+fn walk_item(item: &mut InMemDicomObject, uid_map: &mut UidMap) -> Result<(), DeidentifyError> {
     if let Some(concept_item) = item
         .element(tags::CONCEPT_NAME_CODE_SEQUENCE)
         .ok()
         .and_then(|e| e.items())
         .and_then(|i| i.first())
     {
-        let code_value = concept_item.element(tags::CODE_VALUE)?.to_str()?;
+        let code_value = concept_item
+            .element(tags::CODE_VALUE)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?;
 
         // TODO: future: possibly add deidentification of other items based on CodeValue + possibly
         // ValueType

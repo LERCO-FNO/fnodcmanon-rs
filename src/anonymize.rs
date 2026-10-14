@@ -9,22 +9,16 @@ use std::{
 };
 use tracing::{debug, warn};
 
-use crate::{
-    error::{AccessElementSnafu, DeidentifyError},
-    utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files},
+use crate::error::{
+    AccessElementSnafu, ConvertValueSnafu, CreateStudyDirSnafu, DeidentifySnafu,
+    ReadDicomFileSnafu, WriteDicomFileSnafu,
 };
-use crate::{
-    error::{AnonymizerError, ReadDicomFileSnafu},
-    tag_dump::StudyTags,
-};
-use crate::{
-    error::{ConvertValueSnafu, Error},
-    tag_rules_generated::TAG_RULES,
-};
-use crate::{
-    profiles::{DeidentifyProfile, TagRule},
-    uid::UidMap,
-};
+use crate::error::{DeidentifyError, Error};
+use crate::profiles::{DeidentifyProfile, TagRule};
+use crate::tag_dump::StudyTags;
+use crate::tag_rules_generated::TAG_RULES;
+use crate::uid::UidMap;
+use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files};
 
 static TAG_RULES_MAP: LazyLock<HashMap<Tag, TagRule>> = LazyLock::new(|| {
     debug!(
@@ -121,14 +115,15 @@ impl DicomAnonymizer {
         &mut self,
         dicom_files: Vec<PathBuf>,
         output_dir: &Path,
-    ) -> Result<(), AnonymizerError> {
+    ) -> Result<(), DeidentifyError> {
         let mut uid_map = UidMap::new(self.uid_root.clone());
         self.new_study_uid = uid_map.get_or_insert(&self.old_study_uid);
 
-        let study_dir = create_study_dir(output_dir, &self.new_study_uid)?;
+        let study_dir =
+            create_study_dir(output_dir, &self.new_study_uid).context(CreateStudyDirSnafu)?;
 
         for file in dicom_files {
-            let mut dataset = open_file(&file)?;
+            let mut dataset = open_file(&file).context(ReadDicomFileSnafu)?;
 
             // collect dataset's tags; .tags() is immutable borrow over iterable; for-loop below modifies dataset
             let tags: Vec<Tag> = dataset.tags().collect();
@@ -149,7 +144,9 @@ impl DicomAnonymizer {
                 warn!("file `{}` exists, overwriting", filepath.display());
             }
 
-            dataset.write_to_file(filepath)?;
+            dataset
+                .write_to_file(filepath)
+                .context(WriteDicomFileSnafu)?;
         }
 
         debug!(
@@ -176,9 +173,10 @@ impl DicomAnonymizer {
 
             // unwrap() is fine, empty Vec<> already checked in get_dicom_files()
             self.get_basic_tags(dicom_files.first().unwrap())
-                .context(DeidentifyErrorSnafu)?;
+                .context(DeidentifySnafu)?;
             self.set_pseudoname();
-            self.anonymize_study(dicom_files, output_dir)?;
+            self.anonymize_study(dicom_files, output_dir)
+                .context(DeidentifySnafu)?;
 
             study_tags.push(StudyTags::new(
                 self.old_id.clone(),
@@ -369,7 +367,6 @@ mod tests {
 
         let active_profiles = HashSet::from([DeidentifyProfile::BasicConfidentiality]);
         let root = "1.2.3.".to_string();
-        // let study_uid = generate_uid(&root);
         let mut uid_map = UidMap::new(root.clone());
 
         for ds in &mut datasets1 {

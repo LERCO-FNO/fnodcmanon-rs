@@ -4,10 +4,8 @@ use std::{fs, io};
 
 use rand::Rng;
 use rand::distr::Alphanumeric;
-use snafu::ResultExt;
 use tracing::{error, info, warn};
 
-use crate::error::UIDRootError;
 use crate::error::{Error, ScanDirectorySnafu};
 
 pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, Error> {

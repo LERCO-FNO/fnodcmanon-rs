@@ -20,7 +20,7 @@ use profiles::DeidentifyProfile;
 use tag_dump::write_tags_to_file;
 use utils::{pseudoname_file_exists, read_pseudonames_files, validate_uid};
 
-use crate::error::{Error, WriteDeidentifySnafu};
+use crate::error::{Error, WriteCsvDeidentifySnafu};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -135,7 +135,6 @@ fn main() -> Result<(), Error> {
     )
     .unwrap_or_else(|e| error!("{}", snafu::Report::from_error(e)));
 
-    // let method = resolve_method(random_string, integer_count, from_file)?;
     let method = pseudoname_method.resolve()?;
     let profiles: HashSet<DeidentifyProfile> = initialize_profiles(profile);
 
@@ -144,7 +143,7 @@ fn main() -> Result<(), Error> {
 
     if write_tags {
         write_tags_to_file(output_dir.join("deidentified.csv"), study_tags)
-            .context(WriteDeidentifySnafu)?;
+            .context(WriteCsvDeidentifySnafu)?;
     }
 
     Ok(())
