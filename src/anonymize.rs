@@ -385,7 +385,7 @@ mod tests {
             }
         }
 
-        assert_eq!(uid_map.len(), 2);
+        assert_eq!(uid_map.map.len(), 2);
 
         Ok(())
     }

@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 pub struct UidMap {
     pub root: String,
-    map: HashMap<String, String>,
+    pub map: HashMap<String, String>,
 }
 
 impl UidMap {
@@ -25,10 +25,6 @@ impl UidMap {
 
     pub fn generate_uid(&self) -> String {
         generate_uid(&self.root)
-    }
-
-    pub fn len(&self) -> usize {
-        self.map.len()
     }
 }
 
