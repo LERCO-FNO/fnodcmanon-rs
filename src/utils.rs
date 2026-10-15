@@ -8,7 +8,7 @@ use tracing::{error, info, warn};
 
 use crate::error::{Error, ScanDirectorySnafu};
 
-pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, Error> {
+pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<Vec<PathBuf>>, Error> {
     if !input_path.exists() {
         return ScanDirectorySnafu {
             message: format!("Input path does not exist at `{}`", input_path.display()),
@@ -40,65 +40,74 @@ pub fn find_dicom_dirs(input_path: &Path) -> Result<Vec<PathBuf>, Error> {
         .fail();
     }
 
+    let mut dirs_with_dicom_files: Vec<Vec<PathBuf>> = Vec::new();
+    for dir in dirs {
+        // Filter for potentially valid DICOM files during directory discovery.
+        // Valid DICOM files can be: with extension *.dcm or extension-less
+        // Directories with no valid DICOM files are reported to the user to verify validity.
+        if let Some(dicom_files) = get_dicom_files(&dir) {
+            dirs_with_dicom_files.push(dicom_files);
+        } else {
+            match fs::read_dir(&dir) {
+                Ok(entries) => {
+                    let first_five: Vec<PathBuf> = entries
+                        .filter_map(Result::ok)
+                        .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+                        .map(|e| e.path())
+                        .take(5)
+                        .collect();
+                    warn!(
+                        "No potential DICOM files found in `{}`, verify yourself",
+                        dir.display()
+                    );
+                    warn!("Preview of first 5 file entries: {:?}", first_five)
+                }
+                Err(e) => error!("{e}"),
+            };
+        }
+    }
+
     info!(
         "Found {} directories with DICOM files in `{}`",
-        dirs.len(),
+        dirs_with_dicom_files.len(),
         input_path.display()
     );
-    Ok(dirs)
-
-    // {
-    //     Ok(dirs) => {
-    //         if dirs.is_empty() {
-    //             ScanDirectorySnafu {
-    //                 message: format!("No dicom directories at `{}`", input_path.display()),
-    //             }
-    //             .build();
-    //         }
-    //
-    //         info!(
-    //             "Found {0} directories with dicom files in {1}",
-    //             dirs.len(),
-    //             input_path.display()
-    //         );
-    //         Ok(dirs)
-    //     }
-    //     Err(e) => Err(ScanDirectorySnafu {
-    //         message: format!("{e}"),
-    //     }
-    //     .build()),
-    // }
+    Ok(dirs_with_dicom_files)
 }
 
-fn get_dirs(input_path: &Path) -> Result<Vec<PathBuf>, io::Error> {
+fn get_dirs(current_dir: &Path) -> Result<Vec<PathBuf>, io::Error> {
     let mut dicom_dirs: Vec<PathBuf> = Vec::new();
-    let mut has_direct_file = false;
+    let mut dir_has_dicom_file = false; // check whethever current directory has DICOM files
 
-    for entry in fs::read_dir(input_path)? {
+    for entry in fs::read_dir(current_dir)? {
         let entry = match entry {
             Ok(e) => e,
             Err(e) => {
                 warn!(
                     "Skipping unreadable entry in `{}`: {e}",
-                    input_path.display()
+                    current_dir.display()
                 );
                 continue;
             }
         };
 
         let Ok(ft) = entry.file_type() else { continue };
+        let path = entry.path();
 
         if ft.is_symlink() {
             continue;
         } else if ft.is_file() {
-            has_direct_file = true;
-        } else {
+            if !dir_has_dicom_file && path.file_name().and_then(|n| n.to_str()) != Some("DICOMDIR")
+            {
+                dir_has_dicom_file = true;
+            }
+        } else if ft.is_dir() {
             dicom_dirs.extend(get_dirs(&entry.path())?);
         }
     }
 
-    if has_direct_file {
-        dicom_dirs.push(input_path.to_path_buf());
+    if dir_has_dicom_file {
+        dicom_dirs.push(current_dir.to_path_buf());
     }
 
     Ok(dicom_dirs)
@@ -157,9 +166,10 @@ pub fn get_dicom_files(dir: &Path) -> Option<Vec<PathBuf>> {
         .filter_map(Result::ok)
         .map(|x| x.path())
         .filter(|x| {
-            x.is_file()
-//                && x.extension().is_none()
-                && x.file_name().and_then(|x| x.to_str()) != Some("DICOMDIR")
+            x.is_file() // valid DICOM file can have *.dcm extension or no extension
+                && (x.extension().is_none()
+                    || x.extension().and_then(|x| x.to_str()) == Some("dcm")) 
+            && x.file_name().and_then(|x| x.to_str()) != Some("DICOMDIR")
         })
         .collect();
 

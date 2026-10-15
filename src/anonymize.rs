@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
     sync::LazyLock,
 };
-use tracing::{debug, warn};
+use tracing::{debug, error};
 
 use crate::error::{
     AccessElementSnafu, ConvertValueSnafu, CreateStudyDirSnafu, DeidentifySnafu,
@@ -18,7 +18,7 @@ use crate::profiles::{DeidentifyProfile, TagRule};
 use crate::tag_dump::StudyTags;
 use crate::tag_rules_generated::TAG_RULES;
 use crate::uid::UidMap;
-use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files};
+use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string};
 
 static TAG_RULES_MAP: LazyLock<HashMap<Tag, TagRule>> = LazyLock::new(|| {
     debug!(
@@ -87,11 +87,6 @@ impl DicomAnonymizer {
     }
 
     fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), DeidentifyError> {
-        // BUG: This fails if the first file is non DICOM file or directory with expected files has
-        // non-DICOM files.
-        // Solution: report as error!() and continue to next directory?
-        // Try to think of some way of filtering non-DICOM files in get_dicom_files and this avoid
-        // all together?
         let dicom_obj = open_file(filepath).context(ReadDicomFileSnafu)?;
 
         self.old_id = dicom_obj
@@ -135,8 +130,6 @@ impl DicomAnonymizer {
                     continue;
                     // Reporting instead of early quitting for the rare possibility of some random
                     // file within study directory.
-                    // Filtering would require reading the file as DICOM files don't have to have
-                    // ".dcm" extension.
                 }
             };
 
@@ -188,12 +181,7 @@ impl DicomAnonymizer {
         let dicom_dirs = find_dicom_dirs(&input_dir)?;
 
         let mut study_tags: Vec<StudyTags> = Vec::new();
-        for dir in dicom_dirs {
-            let dicom_files = match get_dicom_files(&dir) {
-                Some(files) => files,
-                None => continue,
-            };
-
+        for dicom_files in dicom_dirs {
             // unwrap() is fine, empty Vec<> already checked in get_dicom_files()
             self.get_basic_tags(dicom_files.first().unwrap())
                 .context(DeidentifySnafu)?;
