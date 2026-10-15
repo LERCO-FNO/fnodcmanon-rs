@@ -1,8 +1,10 @@
-use clap::Parser;
+use clap::{Args as ClapArgs, Parser};
+use snafu::ResultExt;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use simple_logger::SimpleLogger;
+use tracing::error;
+use tracing_subscriber::fmt::time::ChronoLocal;
 
 mod anonymize;
 mod error;
@@ -13,9 +15,13 @@ mod uid;
 mod utils;
 
 use anonymize::{DicomAnonymizer, PseudonameMethod};
+use error::FromFileSnafu;
 use profiles::DeidentifyProfile;
-use tag_dump::write_tags;
-use utils::{pseudoname_file_exists, read_pseudonames_files, validate_uid};
+use tag_dump::write_tags_to_file;
+use uid::validate_uid;
+use utils::{pseudoname_file_exists, read_pseudonames_files};
+
+use crate::error::{Error, WriteCsvDeidentifySnafu};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -32,17 +38,9 @@ struct Args {
     #[arg(short, long, default_value = "")]
     prefix: String,
 
-    /// Pseudonames as random 10-character alphanumeric string (default).
-    #[arg(long, conflicts_with_all = ["integer_count", "from_file"])]
-    random_string: bool,
-
-    /// Pseudonames as incrementing integers from starting VALUE, ex. --integer-count 5 -> <prefix>_5, <prefix>_6, ...
-    #[arg(long, value_name = "VALUE", conflicts_with = "from_file", default_missing_value = "1", num_args = 0..=1)]
-    integer_count: Option<u16>,
-
-    /// Pseudonames from .txt file with optional prefixes.
-    #[arg(long, conflicts_with = "integer_count", value_parser = pseudoname_file_exists)]
-    from_file: Option<PathBuf>,
+    /// Set deidentification method
+    #[command(flatten)]
+    pseudoname_method: PseudonameMethodArg,
 
     /// Enable optional deidentification profiles. Basic Application Confidentidentiality Profile always enabled by default.
     /// See generate-tag-rules/dicom/deidentify_rules.csv table deidentification actions of tags per profile.
@@ -63,8 +61,46 @@ struct Args {
     write_tags: bool,
 
     /// Print at DEBUG logging level.
-    #[arg(long)]
-    debug: bool,
+    #[arg(short, long)]
+    verbose: bool,
+}
+
+#[derive(Debug, ClapArgs)]
+#[group(multiple = false)]
+pub struct PseudonameMethodArg {
+    /// Pseudonames as random 10-character alphanumeric string (default).
+    #[arg(short, long, help_heading = "Pseudoname method")]
+    random_string: bool,
+
+    /// Pseudonames as incrementing unsigned integers from starting <VALUE>, ex. --integer-count 5 -> <prefix>_5, <prefix>_6, ...
+    #[arg(
+        short = 'c',
+        long,
+        value_name = "VALUE",
+        default_missing_value = "1",
+        num_args = 0..=1,
+        help_heading = "Pseudoname method"
+    )]
+    integer_count: Option<u16>,
+
+    /// Pseudonames from .txt file with optional prefixes.
+    #[arg(short, long, value_parser = pseudoname_file_exists, help_heading = "Pseudoname method")]
+    from_file: Option<PathBuf>,
+}
+
+impl PseudonameMethodArg {
+    pub fn resolve(self) -> Result<PseudonameMethod, Error> {
+        match (self.integer_count, self.from_file) {
+            (Some(start), None) => Ok(PseudonameMethod::IntegerCount { current: start }),
+            (None, Some(file)) => Ok(PseudonameMethod::FromMap {
+                map: read_pseudonames_files(&file).context(FromFileSnafu { file })?,
+            }),
+            (None, None) => Ok(PseudonameMethod::RandomString),
+            (Some(_), Some(_)) => {
+                unreachable!("PseudonameMethodArg group enforces mutual exclusivity")
+            }
+        }
+    }
 }
 
 //TODO: add removing tags matching 'Unknown Tag' in name
@@ -76,44 +112,39 @@ fn initialize_profiles(optional_profiles: Vec<DeidentifyProfile>) -> HashSet<Dei
         .collect()
 }
 
-fn resolve_method(args: &Args) -> Result<PseudonameMethod, std::io::Error> {
-    if let Some(path) = args.from_file.clone() {
-        let method = PseudonameMethod::FromMap {
-            map: read_pseudonames_files(path)?,
-        };
-        return Ok(method);
-    }
+fn main() -> Result<(), Error> {
+    let Args {
+        input_dir,
+        output_dir,
+        prefix,
+        pseudoname_method,
+        profile,
+        uid_root,
+        write_tags,
+        verbose,
+    } = Args::parse();
 
-    if let Some(start) = args.integer_count {
-        return Ok(PseudonameMethod::IntegerCount { current: start });
-    }
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_timer(ChronoLocal::new("%Y-%m-%d %H:%M:%S".to_string()))
+            .with_max_level(if verbose {
+                tracing::Level::DEBUG
+            } else {
+                tracing::Level::INFO
+            })
+            .finish(),
+    )
+    .unwrap_or_else(|e| error!("{}", snafu::Report::from_error(e)));
 
-    if !args.random_string {
-        log::warn!("No anonymization method specified, using RandomString");
-    }
+    let method = pseudoname_method.resolve()?;
+    let profiles: HashSet<DeidentifyProfile> = initialize_profiles(profile);
 
-    Ok(PseudonameMethod::RandomString)
-}
+    let study_tags = DicomAnonymizer::new(prefix, method, profiles, uid_root)
+        .run_anonymization(input_dir, &output_dir)?;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-
-    SimpleLogger::new()
-        .with_level(if args.debug {
-            log::LevelFilter::Debug
-        } else {
-            log::LevelFilter::Info
-        })
-        .init()?;
-
-    let method = resolve_method(&args)?;
-    let profiles: HashSet<DeidentifyProfile> = initialize_profiles(args.profile);
-
-    let study_tags = DicomAnonymizer::new(args.prefix, method, profiles, args.uid_root)
-        .run_anonymization(args.input_dir, &args.output_dir)?;
-
-    if args.write_tags {
-        write_tags(args.output_dir.join("deidentified.csv"), study_tags)?;
+    if write_tags {
+        write_tags_to_file(output_dir.join("deidentified.csv"), study_tags)
+            .context(WriteCsvDeidentifySnafu)?;
     }
 
     Ok(())
@@ -124,29 +155,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn arg_from_file() -> Result<(), Box<dyn std::error::Error>> {
+    fn parse_args() {
         let args_input: Vec<&str> = vec![
             "--",
             "--input-dir",
             "./input",
             "-p",
             "TEST",
-            "-a",
-            "patient-characteristics",
+            "-d",
+            "retain-patient-characteristics",
+            "--random-string",
         ];
 
-        let args_parse =
-            Args::try_parse_from(args_input.iter()).expect("error parsing CLI arguments");
+        let args = Args::try_parse_from(args_input).expect("Error parsing CLI arguments");
+        let active_profiles = initialize_profiles(args.profile);
 
-        let active_profiles = initialize_profiles(args_parse.profile);
-
-        for profile in [
+        for p in [
             DeidentifyProfile::BasicConfidentiality,
             DeidentifyProfile::RetainPatientCharacteristics,
         ] {
-            assert!(active_profiles.contains(&profile));
+            assert!(
+                active_profiles.contains(&p),
+                "Active profile set should contain {p:?}"
+            );
         }
 
-        Ok(())
+        use std::str::FromStr;
+        assert_eq!(
+            args.output_dir,
+            PathBuf::from_str("./output").expect("Error parsing true output_dir into PathBuf")
+        );
     }
 }

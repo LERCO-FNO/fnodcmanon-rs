@@ -12,11 +12,11 @@ struct Row {
     #[serde(rename = "Retd. (from\u{a0}PS3.6)")]
     retired: String,
     #[serde(rename = "In Std. Comp. IOD (from\u{a0}PS3.3)")]
-    in_standard: String,
+    _in_standard: String,
     #[serde(rename = "Basic Prof.")]
     basic_action: String,
     #[serde(rename = "Rtn. Safe Priv. Opt.")]
-    private_action: String,
+    _private_action: String,
     #[serde(rename = "Rtn. UIDs Opt.")]
     uid_action: String,
     #[serde(rename = "Rtn. Dev. Id. Opt.")]

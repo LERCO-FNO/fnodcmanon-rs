@@ -1,22 +1,27 @@
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, open_file};
+use snafu::ResultExt;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::LazyLock,
 };
+use tracing::{debug, error};
 
-use crate::tag_rules_generated::TAG_RULES;
-use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string, get_dicom_files};
-use crate::{error::AnonymizerError, tag_dump::StudyTags};
-use crate::{
-    profiles::{DeidentifyProfile, TagRule},
-    uid::UidMap,
+use crate::error::{
+    AccessElementSnafu, ConvertValueSnafu, CreateStudyDirSnafu, DeidentifySnafu,
+    ReadDicomFileSnafu, WriteDicomFileSnafu,
 };
+use crate::error::{DeidentifyError, Error};
+use crate::profiles::{DeidentifyProfile, TagRule};
+use crate::tag_dump::StudyTags;
+use crate::tag_rules_generated::TAG_RULES;
+use crate::uid::UidMap;
+use crate::utils::{create_study_dir, find_dicom_dirs, generate_random_string};
 
 static TAG_RULES_MAP: LazyLock<HashMap<Tag, TagRule>> = LazyLock::new(|| {
-    log::debug!(
+    debug!(
         "initializing TAG_RULES_MAP with {} entries",
         TAG_RULES.len()
     );
@@ -81,14 +86,26 @@ impl DicomAnonymizer {
         };
     }
 
-    fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), AnonymizerError> {
-        let dicom_obj = open_file(filepath)?;
+    fn get_basic_tags(&mut self, filepath: &Path) -> Result<(), DeidentifyError> {
+        let dicom_obj = open_file(filepath).context(ReadDicomFileSnafu)?;
 
-        self.old_id = dicom_obj.element(tags::PATIENT_ID)?.to_str()?.to_string();
-        self.old_name = dicom_obj.element(tags::PATIENT_NAME)?.to_str()?.to_string();
+        self.old_id = dicom_obj
+            .element(tags::PATIENT_ID)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
+            .to_string();
+        self.old_name = dicom_obj
+            .element(tags::PATIENT_NAME)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
+            .to_string();
         self.old_study_uid = dicom_obj
-            .element(tags::STUDY_INSTANCE_UID)?
-            .to_str()?
+            .element(tags::STUDY_INSTANCE_UID)
+            .context(AccessElementSnafu)?
+            .to_str()
+            .context(ConvertValueSnafu)?
             .to_string();
 
         Ok(())
@@ -98,43 +115,59 @@ impl DicomAnonymizer {
         &mut self,
         dicom_files: Vec<PathBuf>,
         output_dir: &Path,
-    ) -> Result<(), AnonymizerError> {
+    ) -> Result<(), DeidentifyError> {
         let mut uid_map = UidMap::new(self.uid_root.clone());
         self.new_study_uid = uid_map.get_or_insert(&self.old_study_uid);
 
-        let study_dir = create_study_dir(output_dir, &self.new_study_uid)?;
+        let study_dir =
+            create_study_dir(output_dir, &self.new_study_uid).context(CreateStudyDirSnafu)?;
 
-        for file in dicom_files {
-            let mut dataset = open_file(&file)?;
+        for file_path in dicom_files {
+            let mut dataset = match open_file(&file_path) {
+                Ok(ds) => ds,
+                Err(err) => {
+                    error!("{err}"); // report wrong file type and skip to next file path
+                    continue;
+                    // Reporting instead of early quitting for the rare possibility of some random
+                    // file within study directory.
+                }
+            };
 
             // collect dataset's tags; .tags() is immutable borrow over iterable; for-loop below modifies dataset
             let tags: Vec<Tag> = dataset.tags().collect();
 
             for tag in tags {
-                let Some(rule) = TAG_RULES_MAP.get(&tag) else {
-                    continue;
-                };
-
-                let action = rule.resolve_action(&self.active_profiles);
-                rule.apply_action(&mut dataset, tag, action, &mut uid_map)?;
+                if let Some(rule) = TAG_RULES_MAP.get(&tag) {
+                    let action = rule.resolve_action(&self.active_profiles);
+                    rule.apply_action(&mut dataset, tag, action, &mut uid_map)?;
+                }
             }
 
             update_patient_name_id(&mut dataset, &self.pseudoname);
             update_deidentification_method_element(&mut dataset, &self.active_profiles);
 
-            let filepath = study_dir.join(file.file_name().unwrap());
+            let file_uid = dataset
+                .element(tags::SOP_INSTANCE_UID)
+                .context(AccessElementSnafu)?
+                .to_str()
+                .context(ConvertValueSnafu)?
+                .to_string();
+            let new_filepath = study_dir.join(format!("{file_uid}.dcm"));
 
-            if filepath.exists() {
-                log::warn!("file {} exists, overwriting", filepath.display());
-            }
+            // uuid v7 is very unique, VERY unlikely (pretty much impossible lol) to generate same
+            // uuid
+            // if filepath.exists() {
+            //     warn!("file `{}` exists, overwriting", filepath.display());
+            // }
 
-            dataset.write_to_file(filepath)?;
+            dataset
+                .write_to_file(new_filepath)
+                .context(WriteDicomFileSnafu)?;
         }
 
-        log::debug!(
+        debug!(
             "old id {0} -> new id/name {1}",
-            self.old_id,
-            self.pseudoname
+            self.old_id, self.pseudoname
         );
 
         Ok(())
@@ -144,19 +177,17 @@ impl DicomAnonymizer {
         &mut self,
         input_dir: PathBuf,
         output_dir: &Path,
-    ) -> Result<Vec<StudyTags>, AnonymizerError> {
+    ) -> Result<Vec<StudyTags>, Error> {
         let dicom_dirs = find_dicom_dirs(&input_dir)?;
 
         let mut study_tags: Vec<StudyTags> = Vec::new();
-        for dir in dicom_dirs {
-            let dicom_files = match get_dicom_files(&dir) {
-                Some(files) => files,
-                None => continue,
-            };
-
-            self.get_basic_tags(dicom_files.first().unwrap())?;
+        for dicom_files in dicom_dirs {
+            // unwrap() is fine, empty Vec<> already checked in get_dicom_files()
+            self.get_basic_tags(dicom_files.first().unwrap())
+                .context(DeidentifySnafu)?;
             self.set_pseudoname();
-            self.anonymize_study(dicom_files, output_dir)?;
+            self.anonymize_study(dicom_files, output_dir)
+                .context(DeidentifySnafu)?;
 
             study_tags.push(StudyTags::new(
                 self.old_id.clone(),
@@ -347,7 +378,6 @@ mod tests {
 
         let active_profiles = HashSet::from([DeidentifyProfile::BasicConfidentiality]);
         let root = "1.2.3.".to_string();
-        // let study_uid = generate_uid(&root);
         let mut uid_map = UidMap::new(root.clone());
 
         for ds in &mut datasets1 {
@@ -363,7 +393,7 @@ mod tests {
             }
         }
 
-        assert_eq!(uid_map.len(), 2);
+        assert_eq!(uid_map.map.len(), 2);
 
         Ok(())
     }

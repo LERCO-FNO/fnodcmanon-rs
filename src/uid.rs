@@ -1,9 +1,10 @@
+use snafu::Snafu;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct UidMap {
     pub root: String,
-    map: HashMap<String, String>,
+    pub map: HashMap<String, String>,
 }
 
 impl UidMap {
@@ -26,10 +27,6 @@ impl UidMap {
     pub fn generate_uid(&self) -> String {
         generate_uid(&self.root)
     }
-
-    pub fn len(&self) -> usize {
-        self.map.len()
-    }
 }
 
 pub fn generate_uid(root: &str) -> String {
@@ -41,6 +38,38 @@ pub fn generate_uid(root: &str) -> String {
     }
 }
 
+pub fn validate_uid(uid: &str) -> Result<String, UIDRootError> {
+    let uid = uid.to_string();
+
+    if uid.chars().any(|c| !c.is_ascii_digit() && c != '.') {
+        return InvalidCharacterSnafu { uid }.fail();
+    }
+
+    if uid.contains("..") {
+        return ExtraPeriodSnafu { uid }.fail();
+    }
+
+    if uid.contains(".0") {
+        return LeadingZeroSnafu { uid }.fail();
+    }
+
+    Ok(uid)
+}
+
+#[derive(Debug, Snafu)]
+// #[snafu(visibility(pub(crate)))]
+pub enum UIDRootError {
+    #[snafu(display(
+        "Invalid character in UID root `{}`, only period separated digits allowed",
+        uid
+    ))]
+    InvalidCharacter { uid: String },
+    #[snafu(display("Extra period in UID root `{}`", uid))]
+    ExtraPeriod { uid: String },
+    #[snafu(display("Leading zero in UID root `{}`", uid))]
+    LeadingZero { uid: String },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,7 +78,6 @@ mod tests {
     fn test_uid() {
         let root = "1.2.3";
         let uid = generate_uid(root);
-        println!("{uid}");
         assert!(uid.starts_with(root));
     }
 }
